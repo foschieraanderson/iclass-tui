@@ -11,7 +11,7 @@ use serde::{
     sqlx::FromRow,
 )]
 pub struct User {
-    pub id: i64,
+    pub id: String,
     pub name: String,
     pub email: String,
     pub role: String,

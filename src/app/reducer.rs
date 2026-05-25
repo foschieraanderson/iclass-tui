@@ -344,7 +344,7 @@ pub async fn reducer(
                 UserModal::Edit => {
 
                     let user_id = if let Resource::Success(ref list) = state.users {
-                        list.get(state.selected_user_index).map(|u| u.id)
+                        list.get(state.selected_user_index).map(|u| u.id.clone())
                     } else {
                         None
                     };
@@ -368,7 +368,7 @@ pub async fn reducer(
                     // password is not included in UpdateUserRequest per API design
                     let _ = password;
 
-                    match api_users::update_user(api, id, req).await {
+                    match api_users::update_user(api, &id, req).await {
 
                         Ok(_) => {
                             state.user_modal = UserModal::None;
@@ -402,7 +402,7 @@ pub async fn reducer(
         Action::ConfirmDeleteUser => {
 
             let user_id = if let Resource::Success(ref list) = state.users {
-                list.get(state.selected_user_index).map(|u| u.id)
+                list.get(state.selected_user_index).map(|u| u.id.clone())
             } else {
                 None
             };
@@ -416,7 +416,7 @@ pub async fn reducer(
                 return Ok(());
             };
 
-            match api_users::delete_user(api, id).await {
+            match api_users::delete_user(api, &id).await {
 
                 Ok(_) => {
                     state.user_modal = UserModal::None;
