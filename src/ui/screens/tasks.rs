@@ -23,6 +23,7 @@ use ratatui::{
         ListItem,
         ListState,
         Paragraph,
+        Wrap,
     },
     Frame,
 };
@@ -34,7 +35,10 @@ use crate::{
         state::{
             AppState,
             FIBONACCI_SCORES,
+            GradeFormField,
             PICKER_VISIBLE_ROWS,
+            SubmissionModal,
+            SubmitFormField,
             TaskFormField,
             TaskModal,
         },
@@ -72,7 +76,14 @@ pub fn render(
             render_confirm_modal(frame, frame.area(), state);
         }
 
-        TaskModal::None => {}
+        TaskModal::None => {
+            match state.submission_modal {
+                SubmissionModal::Submit => render_submit_modal(frame, frame.area(), state),
+                SubmissionModal::List   => render_submissions_modal(frame, frame.area(), state),
+                SubmissionModal::Grade  => render_grade_modal(frame, frame.area(), state),
+                SubmissionModal::None   => {}
+            }
+        }
     }
 }
 
@@ -572,7 +583,7 @@ fn render_detail(
                 let expires = t.expires_at.as_deref().unwrap_or("—");
                 let desc    = t.description.as_deref().unwrap_or("—");
 
-                let lines = vec![
+                let mut lines = vec![
                     Line::from(vec![
                         Span::styled("Turma: ", Style::default().fg(theme::KEY_LABEL)),
                         Span::styled(t.class.code.clone(), Style::default().fg(theme::BORDER_FOCUSED)),
@@ -596,6 +607,16 @@ fn render_detail(
                     ]),
                 ];
 
+                if t.file_url.is_some() {
+                    lines.push(Line::from(vec![
+                        Span::styled("Arquivo: ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::styled(
+                            "disponível — pressione 'o' para abrir",
+                            Style::default().fg(theme::BORDER_FOCUSED),
+                        ),
+                    ]));
+                }
+
                 frame.render_widget(Paragraph::new(lines).block(block), area);
 
             } else {
@@ -616,6 +637,299 @@ fn render_detail(
             );
         }
     }
+}
+
+// ---- modal de envio (student) --------------------------------
+
+fn render_submit_modal(
+    frame: &mut Frame,
+    area: Rect,
+    state: &AppState,
+) {
+    let vertical = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage(20),
+            Constraint::Length(11),
+            Constraint::Percentage(20),
+        ])
+        .split(area);
+
+    let horizontal = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(8),
+            Constraint::Percentage(84),
+            Constraint::Percentage(8),
+        ])
+        .split(vertical[1]);
+
+    let modal_area = horizontal[1];
+    frame.render_widget(Clear, modal_area);
+
+    let outer = Block::default()
+        .title("Enviar Resposta")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme::BORDER_FOCUSED));
+    frame.render_widget(outer, modal_area);
+
+    let inner = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),  // padding
+            Constraint::Length(3),  // file path
+            Constraint::Length(3),  // content
+            Constraint::Length(1),  // error
+            Constraint::Length(1),  // help
+        ])
+        .split(modal_area);
+
+    render_text_field(
+        frame,
+        inner[1],
+        "Caminho do arquivo  (ex: /home/user/trabalho.pdf — opcional)",
+        &state.submit_form.file_path,
+        state.submit_form.active_field == SubmitFormField::FilePath,
+    );
+
+    render_text_field(
+        frame,
+        inner[2],
+        "Observação / Texto  (opcional)",
+        &state.submit_form.content,
+        state.submit_form.active_field == SubmitFormField::Content,
+    );
+
+    if let Some(ref err) = state.error {
+        frame.render_widget(
+            Paragraph::new(Span::styled(err.as_str(), Style::default().fg(theme::ERROR)))
+                .alignment(Alignment::Center),
+            inner[3],
+        );
+    }
+
+    frame.render_widget(
+        Paragraph::new("Tab: próximo   Enter: enviar   Esc: cancelar")
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(theme::KEY_LABEL)),
+        inner[4],
+    );
+}
+
+// ---- modal de lista de submissões (teacher/admin) ------------
+
+fn render_submissions_modal(
+    frame: &mut Frame,
+    area: Rect,
+    state: &AppState,
+) {
+    let vertical = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage(8),
+            Constraint::Min(5),
+            Constraint::Percentage(8),
+        ])
+        .split(area);
+
+    let horizontal = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(4),
+            Constraint::Percentage(92),
+            Constraint::Percentage(4),
+        ])
+        .split(vertical[1]);
+
+    let modal_area = horizontal[1];
+    frame.render_widget(Clear, modal_area);
+
+    let task_title = if let Resource::Success(ref tasks) = state.tasks {
+        tasks.get(state.selected_task_index)
+            .map(|t| t.title.as_str())
+            .unwrap_or("")
+            .to_string()
+    } else {
+        String::new()
+    };
+
+    let outer = Block::default()
+        .title(format!(" Submissões — {} ", task_title))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme::BORDER_FOCUSED));
+
+    let inner_area = outer.inner(modal_area);
+    frame.render_widget(outer, modal_area);
+
+    let inner = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(3), Constraint::Length(1)])
+        .split(inner_area);
+
+    frame.render_widget(
+        Paragraph::new("↑↓ navegar   g avaliar   o abrir arquivo   Esc fechar")
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(theme::KEY_LABEL)),
+        inner[1],
+    );
+
+    match &state.submissions {
+        Resource::Idle | Resource::Loading => {
+            frame.render_widget(
+                Paragraph::new("Carregando...")
+                    .style(Style::default().fg(Color::Yellow))
+                    .alignment(Alignment::Center),
+                inner[0],
+            );
+        }
+        Resource::Error(e) => {
+            frame.render_widget(
+                Paragraph::new(e.clone())
+                    .style(Style::default().fg(theme::ERROR))
+                    .wrap(Wrap { trim: false }),
+                inner[0],
+            );
+        }
+        Resource::Success(subs) if subs.is_empty() => {
+            frame.render_widget(
+                Paragraph::new("Nenhuma submissão encontrada.")
+                    .style(Style::default().fg(theme::KEY_LABEL))
+                    .alignment(Alignment::Center),
+                inner[0],
+            );
+        }
+        Resource::Success(subs) => {
+            let items: Vec<ListItem> = subs.iter().map(|s| {
+                let date      = s.submitted_at.get(..10).unwrap_or(&s.submitted_at);
+                let file_icon = if s.file_url.is_some() { "[F]" } else { "   " };
+                let grade_str = s.grade
+                    .map(|g| format!("{:>3} pts", g))
+                    .unwrap_or_else(|| "    —  ".to_string());
+
+                ListItem::new(Line::from(vec![
+                    Span::styled(
+                        format!("{:<30}", s.student.name.clone()),
+                        Style::default().fg(theme::HEADER_FG),
+                    ),
+                    Span::styled(
+                        format!("{:<12}", date),
+                        Style::default().fg(theme::KEY_LABEL),
+                    ),
+                    Span::styled(
+                        format!("{} ", file_icon),
+                        Style::default().fg(theme::BORDER_FOCUSED),
+                    ),
+                    Span::styled(grade_str, Style::default().fg(theme::ROLE_TEACHER)),
+                ]))
+            }).collect();
+
+            let list = List::new(items)
+                .highlight_symbol("▶ ")
+                .highlight_style(
+                    Style::default()
+                        .bg(theme::LIST_SELECTED_BG)
+                        .fg(theme::LIST_SELECTED_FG)
+                        .add_modifier(Modifier::BOLD),
+                );
+
+            let mut list_state = ListState::default();
+            list_state.select(Some(state.selected_submission_index));
+            frame.render_stateful_widget(list, inner[0], &mut list_state);
+        }
+    }
+}
+
+// ---- modal de avaliação (teacher/admin) ----------------------
+
+fn render_grade_modal(
+    frame: &mut Frame,
+    area: Rect,
+    state: &AppState,
+) {
+    let task_score = if let Resource::Success(ref tasks) = state.tasks {
+        tasks.get(state.selected_task_index).map(|t| t.score).unwrap_or(0)
+    } else {
+        0
+    };
+
+    let student_name = if let Resource::Success(ref subs) = state.submissions {
+        subs.get(state.selected_submission_index)
+            .map(|s| s.student.name.as_str())
+            .unwrap_or("")
+            .to_string()
+    } else {
+        String::new()
+    };
+
+    let vertical = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage(25),
+            Constraint::Length(11),
+            Constraint::Percentage(25),
+        ])
+        .split(area);
+
+    let horizontal = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(15),
+            Constraint::Percentage(70),
+            Constraint::Percentage(15),
+        ])
+        .split(vertical[1]);
+
+    let modal_area = horizontal[1];
+    frame.render_widget(Clear, modal_area);
+
+    let outer = Block::default()
+        .title(format!(" Avaliar — {} ", student_name))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme::BORDER_FOCUSED));
+    frame.render_widget(outer, modal_area);
+
+    let inner = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1),  // padding
+            Constraint::Length(3),  // grade
+            Constraint::Length(3),  // feedback
+            Constraint::Length(1),  // error
+            Constraint::Length(1),  // help
+        ])
+        .split(modal_area);
+
+    let grade_label = format!("Nota  (0 – {} pts)", task_score);
+    render_text_field(
+        frame,
+        inner[1],
+        &grade_label,
+        &state.grade_form.grade,
+        state.grade_form.active_field == GradeFormField::Grade,
+    );
+
+    render_text_field(
+        frame,
+        inner[2],
+        "Feedback  (opcional)",
+        &state.grade_form.feedback,
+        state.grade_form.active_field == GradeFormField::Feedback,
+    );
+
+    if let Some(ref err) = state.error {
+        frame.render_widget(
+            Paragraph::new(Span::styled(err.as_str(), Style::default().fg(theme::ERROR)))
+                .alignment(Alignment::Center),
+            inner[3],
+        );
+    }
+
+    frame.render_widget(
+        Paragraph::new("Tab: próximo   Enter: salvar   Esc: cancelar")
+            .alignment(Alignment::Center)
+            .style(Style::default().fg(theme::KEY_LABEL)),
+        inner[4],
+    );
 }
 
 // ---- modal de confirmação de exclusão ------------------------

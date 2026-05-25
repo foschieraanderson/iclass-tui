@@ -151,6 +151,43 @@ impl ApiClient {
         Ok(response.json::<T>().await?)
     }
 
+    /// POST multipart com arquivo opcional lido do filesystem local.
+    pub async fn post_form_with_file<T>(
+        &self,
+        path: &str,
+        fields: Vec<(String, String)>,
+        file_path: Option<String>,
+    ) -> anyhow::Result<T>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        let mut form = fields
+            .into_iter()
+            .fold(reqwest::multipart::Form::new(), |f, (k, v)| f.text(k, v));
+
+        if let Some(ref fp) = file_path {
+            if !fp.is_empty() {
+                let bytes = tokio::fs::read(fp).await
+                    .map_err(|e| anyhow::anyhow!("Erro ao ler '{}': {}", fp, e))?;
+                let name = std::path::Path::new(fp)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("file")
+                    .to_string();
+                form = form.part("file", reqwest::multipart::Part::bytes(bytes).file_name(name));
+            }
+        }
+
+        let resp = self.client
+            .post(format!("{}{}", self.base_url, path))
+            .multipart(form)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(resp.json::<T>().await?)
+    }
+
     pub async fn delete(
         &self,
         path: &str,

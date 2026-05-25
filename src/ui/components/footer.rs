@@ -15,6 +15,7 @@ use crate::{
         state::{
             AppState,
             ClassModal,
+            SubmissionModal,
             TaskModal,
             UserModal,
         },
@@ -115,26 +116,54 @@ pub fn render(
                     key("   Esc"), label(" cancelar"),
                 ]
 
-            } else if can_mutate {
-
-                vec![
-                    key("←→"), label(" foco"),
-                    key("   ↑↓"), label(" navegar"),
-                    key("   a"), label(" adicionar"),
-                    key("   e"), label(" editar"),
-                    key("   d"), label(" remover"),
-                    key("   l"), label(" logout"),
-                    key("   q"), label(" sair"),
-                ]
-
             } else {
 
-                vec![
-                    key("←→"), label(" foco"),
-                    key("   ↑↓"), label(" navegar"),
-                    key("   l"), label(" logout"),
-                    key("   q"), label(" sair"),
-                ]
+                match state.submission_modal {
+
+                    SubmissionModal::Submit => vec![
+                        key("Tab"), label(" próximo"),
+                        key("   Enter"), label(" enviar"),
+                        key("   Esc"), label(" cancelar"),
+                    ],
+
+                    SubmissionModal::List => vec![
+                        key("↑↓"), label(" navegar"),
+                        key("   g"), label(" avaliar"),
+                        key("   o"), label(" arquivo"),
+                        key("   Esc"), label(" fechar"),
+                    ],
+
+                    SubmissionModal::Grade => vec![
+                        key("Tab"), label(" próximo"),
+                        key("   Enter"), label(" salvar"),
+                        key("   Esc"), label(" cancelar"),
+                    ],
+
+                    SubmissionModal::None => {
+                        if can_mutate {
+                            vec![
+                                key("←→"), label(" foco"),
+                                key("   ↑↓"), label(" navegar"),
+                                key("   a"), label(" adicionar"),
+                                key("   e"), label(" editar"),
+                                key("   d"), label(" remover"),
+                                key("   s"), label(" submissões"),
+                                key("   o"), label(" arquivo"),
+                                key("   l"), label(" logout"),
+                                key("   q"), label(" sair"),
+                            ]
+                        } else {
+                            vec![
+                                key("←→"), label(" foco"),
+                                key("   ↑↓"), label(" navegar"),
+                                key("   s"), label(" enviar"),
+                                key("   o"), label(" arquivo"),
+                                key("   l"), label(" logout"),
+                                key("   q"), label(" sair"),
+                            ]
+                        }
+                    }
+                }
             }
         }
 

@@ -9,6 +9,7 @@ use crate::{
         class::ClassRoom,
         dashboard::DashboardData,
         report::ClassReport,
+        submission::Submission,
         task::Task,
         user::User,
     },
@@ -141,6 +142,62 @@ impl Default for ClassForm {
     }
 }
 
+// ---- Submission modal / forms ---------------------------------
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SubmissionModal {
+    None,
+    Submit,
+    List,
+    Grade,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SubmitFormField {
+    FilePath,
+    Content,
+}
+
+#[derive(Debug, Clone)]
+pub struct SubmitForm {
+    pub file_path:    String,
+    pub content:      String,
+    pub active_field: SubmitFormField,
+}
+
+impl Default for SubmitForm {
+    fn default() -> Self {
+        Self {
+            file_path:    String::new(),
+            content:      String::new(),
+            active_field: SubmitFormField::FilePath,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GradeFormField {
+    Grade,
+    Feedback,
+}
+
+#[derive(Debug, Clone)]
+pub struct GradeForm {
+    pub grade:        String,
+    pub feedback:     String,
+    pub active_field: GradeFormField,
+}
+
+impl Default for GradeForm {
+    fn default() -> Self {
+        Self {
+            grade:        String::new(),
+            feedback:     String::new(),
+            active_field: GradeFormField::Grade,
+        }
+    }
+}
+
 // ---- Task modal / form ----------------------------------------
 
 #[derive(Debug, Clone, PartialEq)]
@@ -244,6 +301,14 @@ pub struct AppState {
 
     pub reports: Resource<Vec<ClassReport>>,
 
+    // -- submissions --------------------------------------------
+
+    pub submission_modal:          SubmissionModal,
+    pub submissions:               Resource<Vec<Submission>>,
+    pub selected_submission_index: usize,
+    pub submit_form:               SubmitForm,
+    pub grade_form:                GradeForm,
+
     // -- shared -------------------------------------------------
 
     pub sidebar_index: usize,
@@ -285,6 +350,12 @@ impl Default for AppState {
             dashboard: Resource::Idle,
 
             reports: Resource::Idle,
+
+            submission_modal:          SubmissionModal::None,
+            submissions:               Resource::Idle,
+            selected_submission_index: 0,
+            submit_form:               SubmitForm::default(),
+            grade_form:                GradeForm::default(),
 
             sidebar_index: 0,
 

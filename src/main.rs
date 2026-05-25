@@ -18,6 +18,7 @@ use app::{
         AppState,
         ClassFormField,
         ClassModal,
+        SubmissionModal,
         TaskFormField,
         TaskModal,
         UserFormField,
@@ -564,72 +565,191 @@ async fn main() -> anyhow::Result<()> {
 
                             TaskModal::None => {
 
-                                match key.code {
+                                let sub_modal = state.submission_modal.clone();
 
-                                    KeyCode::Left => {
-                                        reducer(&mut state, Action::SetFocus(Focus::Sidebar), &pool, &config).await?;
-                                    }
+                                match sub_modal {
 
-                                    KeyCode::Right => {
-                                        reducer(&mut state, Action::SetFocus(Focus::Content), &pool, &config).await?;
-                                    }
+                                    SubmissionModal::None => {
 
-                                    KeyCode::Down => {
-                                        if state.focus == Focus::Sidebar {
-                                            reducer(&mut state, Action::NavigateDown, &pool, &config).await?;
-                                            if state.route == Route::Tasks {
-                                                reducer(&mut state, Action::LoadTasks, &pool, &config).await?;
-                                            } else if state.route == Route::Reports {
-                                                reducer(&mut state, Action::LoadReports, &pool, &config).await?;
+                                        match key.code {
+
+                                            KeyCode::Left => {
+                                                reducer(&mut state, Action::SetFocus(Focus::Sidebar), &pool, &config).await?;
                                             }
-                                        } else if let app::resources::Resource::Success(ref list) = state.tasks {
-                                            let max = list.len().saturating_sub(1);
-                                            if state.selected_task_index < max {
-                                                let idx = state.selected_task_index + 1;
-                                                reducer(&mut state, Action::SelectTask(idx), &pool, &config).await?;
+
+                                            KeyCode::Right => {
+                                                reducer(&mut state, Action::SetFocus(Focus::Content), &pool, &config).await?;
                                             }
+
+                                            KeyCode::Down => {
+                                                if state.focus == Focus::Sidebar {
+                                                    reducer(&mut state, Action::NavigateDown, &pool, &config).await?;
+                                                    if state.route == Route::Tasks {
+                                                        reducer(&mut state, Action::LoadTasks, &pool, &config).await?;
+                                                    } else if state.route == Route::Reports {
+                                                        reducer(&mut state, Action::LoadReports, &pool, &config).await?;
+                                                    }
+                                                } else if let app::resources::Resource::Success(ref list) = state.tasks {
+                                                    let max = list.len().saturating_sub(1);
+                                                    if state.selected_task_index < max {
+                                                        let idx = state.selected_task_index + 1;
+                                                        reducer(&mut state, Action::SelectTask(idx), &pool, &config).await?;
+                                                    }
+                                                }
+                                            }
+
+                                            KeyCode::Up => {
+                                                if state.focus == Focus::Sidebar {
+                                                    reducer(&mut state, Action::NavigateUp, &pool, &config).await?;
+                                                    if state.route == Route::Tasks {
+                                                        reducer(&mut state, Action::LoadTasks, &pool, &config).await?;
+                                                    } else if state.route == Route::Classes {
+                                                        reducer(&mut state, Action::LoadClasses, &pool, &config).await?;
+                                                    } else if state.route == Route::Users {
+                                                        reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
+                                                    } else if state.route == Route::Dashboard {
+                                                        reducer(&mut state, Action::LoadDashboard, &pool, &config).await?;
+                                                    }
+                                                } else if state.selected_task_index > 0 {
+                                                    let idx = state.selected_task_index - 1;
+                                                    reducer(&mut state, Action::SelectTask(idx), &pool, &config).await?;
+                                                }
+                                            }
+
+                                            KeyCode::Char('a') if can_mutate => {
+                                                reducer(&mut state, Action::OpenAddTaskModal, &pool, &config).await?;
+                                            }
+
+                                            KeyCode::Char('e') if can_mutate => {
+                                                reducer(&mut state, Action::OpenEditTaskModal, &pool, &config).await?;
+                                            }
+
+                                            KeyCode::Char('d') if can_mutate => {
+                                                reducer(&mut state, Action::OpenConfirmDeleteTaskModal, &pool, &config).await?;
+                                            }
+
+                                            KeyCode::Char('s') => {
+                                                let role = state.session.as_ref().map(|s| s.role.as_str()).unwrap_or("");
+                                                if role == "student" {
+                                                    reducer(&mut state, Action::OpenSubmitModal, &pool, &config).await?;
+                                                } else if role == "teacher" || role == "admin" {
+                                                    reducer(&mut state, Action::OpenSubmissionsModal, &pool, &config).await?;
+                                                }
+                                            }
+
+                                            KeyCode::Char('o') => {
+                                                reducer(&mut state, Action::OpenTaskFile, &pool, &config).await?;
+                                            }
+
+                                            KeyCode::Char('l') => {
+                                                reducer(&mut state, Action::Logout, &pool, &config).await?;
+                                            }
+
+                                            KeyCode::Char('q') => {
+                                                break;
+                                            }
+
+                                            _ => {}
                                         }
                                     }
 
-                                    KeyCode::Up => {
-                                        if state.focus == Focus::Sidebar {
-                                            reducer(&mut state, Action::NavigateUp, &pool, &config).await?;
-                                            if state.route == Route::Tasks {
-                                                reducer(&mut state, Action::LoadTasks, &pool, &config).await?;
-                                            } else if state.route == Route::Classes {
-                                                reducer(&mut state, Action::LoadClasses, &pool, &config).await?;
-                                            } else if state.route == Route::Users {
-                                                reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
-                                            } else if state.route == Route::Dashboard {
-                                                reducer(&mut state, Action::LoadDashboard, &pool, &config).await?;
+                                    SubmissionModal::Submit => {
+
+                                        match key.code {
+
+                                            KeyCode::Esc => {
+                                                reducer(&mut state, Action::CloseSubmissionModal, &pool, &config).await?;
                                             }
-                                        } else if state.selected_task_index > 0 {
-                                            let idx = state.selected_task_index - 1;
-                                            reducer(&mut state, Action::SelectTask(idx), &pool, &config).await?;
+
+                                            KeyCode::Tab => {
+                                                reducer(&mut state, Action::SubmitFormNextField, &pool, &config).await?;
+                                            }
+
+                                            KeyCode::Enter => {
+                                                reducer(&mut state, Action::SubmitSubmission, &pool, &config).await?;
+                                            }
+
+                                            KeyCode::Backspace => {
+                                                reducer(&mut state, Action::SubmitFormBackspace, &pool, &config).await?;
+                                            }
+
+                                            KeyCode::Char(' ') => {
+                                                reducer(&mut state, Action::SubmitFormChar(' '), &pool, &config).await?;
+                                            }
+
+                                            KeyCode::Char(c) => {
+                                                reducer(&mut state, Action::SubmitFormChar(c), &pool, &config).await?;
+                                            }
+
+                                            _ => {}
                                         }
                                     }
 
-                                    KeyCode::Char('a') if can_mutate => {
-                                        reducer(&mut state, Action::OpenAddTaskModal, &pool, &config).await?;
+                                    SubmissionModal::List => {
+
+                                        match key.code {
+
+                                            KeyCode::Esc => {
+                                                reducer(&mut state, Action::CloseSubmissionModal, &pool, &config).await?;
+                                            }
+
+                                            KeyCode::Up => {
+                                                if state.selected_submission_index > 0 {
+                                                    let idx = state.selected_submission_index - 1;
+                                                    reducer(&mut state, Action::SelectSubmission(idx), &pool, &config).await?;
+                                                }
+                                            }
+
+                                            KeyCode::Down => {
+                                                let len = if let app::resources::Resource::Success(ref subs) = state.submissions {
+                                                    subs.len()
+                                                } else { 0 };
+                                                if state.selected_submission_index + 1 < len {
+                                                    let idx = state.selected_submission_index + 1;
+                                                    reducer(&mut state, Action::SelectSubmission(idx), &pool, &config).await?;
+                                                }
+                                            }
+
+                                            KeyCode::Char('g') => {
+                                                reducer(&mut state, Action::OpenGradeModal, &pool, &config).await?;
+                                            }
+
+                                            KeyCode::Char('o') => {
+                                                reducer(&mut state, Action::OpenSubmissionFile, &pool, &config).await?;
+                                            }
+
+                                            _ => {}
+                                        }
                                     }
 
-                                    KeyCode::Char('e') if can_mutate => {
-                                        reducer(&mut state, Action::OpenEditTaskModal, &pool, &config).await?;
-                                    }
+                                    SubmissionModal::Grade => {
 
-                                    KeyCode::Char('d') if can_mutate => {
-                                        reducer(&mut state, Action::OpenConfirmDeleteTaskModal, &pool, &config).await?;
-                                    }
+                                        match key.code {
 
-                                    KeyCode::Char('l') => {
-                                        reducer(&mut state, Action::Logout, &pool, &config).await?;
-                                    }
+                                            KeyCode::Esc => {
+                                                // Esc from grade → back to list view
+                                                reducer(&mut state, Action::OpenSubmissionsModal, &pool, &config).await?;
+                                            }
 
-                                    KeyCode::Char('q') => {
-                                        break;
-                                    }
+                                            KeyCode::Tab => {
+                                                reducer(&mut state, Action::GradeFormNextField, &pool, &config).await?;
+                                            }
 
-                                    _ => {}
+                                            KeyCode::Enter => {
+                                                reducer(&mut state, Action::SubmitGrade, &pool, &config).await?;
+                                            }
+
+                                            KeyCode::Backspace => {
+                                                reducer(&mut state, Action::GradeFormBackspace, &pool, &config).await?;
+                                            }
+
+                                            KeyCode::Char(c) => {
+                                                reducer(&mut state, Action::GradeFormChar(c), &pool, &config).await?;
+                                            }
+
+                                            _ => {}
+                                        }
+                                    }
                                 }
                             }
 

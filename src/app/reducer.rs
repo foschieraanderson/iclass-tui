@@ -6,6 +6,7 @@ use crate::{
         client::ApiClient,
         dashboard as api_dashboard,
         reports as api_reports,
+        submissions as api_submissions,
         tasks as api_tasks,
         users as api_users,
     },
@@ -19,9 +20,14 @@ use crate::{
             ClassFormField,
             ClassModal,
             FIBONACCI_SCORES,
+            GradeForm,
+            GradeFormField,
             LoginField,
             LoginForm,
             PICKER_VISIBLE_ROWS,
+            SubmissionModal,
+            SubmitForm,
+            SubmitFormField,
             TaskForm,
             TaskFormField,
             TaskModal,
@@ -37,6 +43,7 @@ use crate::{
             CreateClassRequest,
             UpdateClassRequest,
         },
+        submission::GradeSubmissionRequest,
         user::{
             CreateUserRequest,
             UpdateUserRequest,
@@ -1453,6 +1460,252 @@ pub async fn reducer(
 
                     state.reports = Resource::Success(reports);
                 }
+            }
+        }
+
+        // ======================================================
+        // SUBMISSIONS
+        // ======================================================
+
+        Action::OpenSubmitModal => {
+            let is_student = state.session.as_ref().map(|s| s.role == "student").unwrap_or(false);
+            if !is_student { return Ok(()); }
+            state.submit_form      = SubmitForm::default();
+            state.submission_modal = SubmissionModal::Submit;
+            state.error            = None;
+        }
+
+        Action::OpenSubmissionsModal => {
+            let can = state.session.as_ref()
+                .map(|s| s.role == "teacher" || s.role == "admin")
+                .unwrap_or(false);
+            if !can { return Ok(()); }
+
+            let task_id = if let Resource::Success(ref tasks) = state.tasks {
+                tasks.get(state.selected_task_index).map(|t| t.id.clone())
+            } else { None };
+            let Some(task_id) = task_id else { return Ok(()); };
+
+            let Some(ref api) = api_client(config, state) else { return Ok(()); };
+
+            state.submission_modal = SubmissionModal::List;
+            state.submissions      = Resource::Loading;
+
+            match api_submissions::list_submissions(api, &task_id).await {
+                Ok(list) => {
+                    state.selected_submission_index = 0;
+                    state.submissions = Resource::Success(list);
+                }
+                Err(e) => {
+                    state.submissions = Resource::Error(e.to_string());
+                }
+            }
+        }
+
+        Action::LoadSubmissions => {
+            let task_id = if let Resource::Success(ref tasks) = state.tasks {
+                tasks.get(state.selected_task_index).map(|t| t.id.clone())
+            } else { None };
+            let Some(task_id) = task_id else { return Ok(()); };
+
+            let Some(ref api) = api_client(config, state) else { return Ok(()); };
+
+            state.submissions = Resource::Loading;
+
+            match api_submissions::list_submissions(api, &task_id).await {
+                Ok(list) => {
+                    state.selected_submission_index = 0;
+                    state.submissions = Resource::Success(list);
+                }
+                Err(e) => {
+                    state.submissions = Resource::Error(e.to_string());
+                }
+            }
+        }
+
+        Action::CloseSubmissionModal => {
+            state.submission_modal = SubmissionModal::None;
+            state.submit_form      = SubmitForm::default();
+            state.grade_form       = GradeForm::default();
+            state.submissions      = Resource::Idle;
+            state.error            = None;
+        }
+
+        // -- submit form input -----------------------------------
+
+        Action::SubmitFormChar(c) => {
+            match state.submit_form.active_field {
+                SubmitFormField::FilePath => state.submit_form.file_path.push(c),
+                SubmitFormField::Content  => state.submit_form.content.push(c),
+            }
+        }
+
+        Action::SubmitFormBackspace => {
+            match state.submit_form.active_field {
+                SubmitFormField::FilePath => { state.submit_form.file_path.pop(); }
+                SubmitFormField::Content  => { state.submit_form.content.pop(); }
+            }
+        }
+
+        Action::SubmitFormNextField => {
+            state.submit_form.active_field = match state.submit_form.active_field {
+                SubmitFormField::FilePath => SubmitFormField::Content,
+                SubmitFormField::Content  => SubmitFormField::FilePath,
+            };
+        }
+
+        Action::SubmitSubmission => {
+            let is_student = state.session.as_ref().map(|s| s.role == "student").unwrap_or(false);
+            if !is_student { return Ok(()); }
+
+            let task_id = if let Resource::Success(ref tasks) = state.tasks {
+                tasks.get(state.selected_task_index).map(|t| t.id.clone())
+            } else { None };
+            let Some(task_id) = task_id else { return Ok(()); };
+
+            let content   = if state.submit_form.content.is_empty()   { None } else { Some(state.submit_form.content.clone()) };
+            let file_path = if state.submit_form.file_path.is_empty() { None } else { Some(state.submit_form.file_path.clone()) };
+
+            if content.is_none() && file_path.is_none() {
+                state.error = Some("Informe um arquivo ou texto.".to_string());
+                return Ok(());
+            }
+
+            let Some(ref api) = api_client(config, state) else { return Ok(()); };
+
+            match api_submissions::submit(api, &task_id, content, file_path).await {
+                Ok(_) => {
+                    state.submission_modal = SubmissionModal::None;
+                    state.submit_form      = SubmitForm::default();
+                    state.error            = None;
+                }
+                Err(e) => {
+                    state.error = Some(e.to_string());
+                }
+            }
+        }
+
+        // -- submissions list ------------------------------------
+
+        Action::SelectSubmission(index) => {
+            state.selected_submission_index = index;
+        }
+
+        Action::OpenGradeModal => {
+            state.grade_form       = GradeForm::default();
+            state.submission_modal = SubmissionModal::Grade;
+            state.error            = None;
+        }
+
+        // -- grade form input ------------------------------------
+
+        Action::GradeFormChar(c) => {
+            match state.grade_form.active_field {
+                GradeFormField::Grade    => state.grade_form.grade.push(c),
+                GradeFormField::Feedback => state.grade_form.feedback.push(c),
+            }
+        }
+
+        Action::GradeFormBackspace => {
+            match state.grade_form.active_field {
+                GradeFormField::Grade    => { state.grade_form.grade.pop(); }
+                GradeFormField::Feedback => { state.grade_form.feedback.pop(); }
+            }
+        }
+
+        Action::GradeFormNextField => {
+            state.grade_form.active_field = match state.grade_form.active_field {
+                GradeFormField::Grade    => GradeFormField::Feedback,
+                GradeFormField::Feedback => GradeFormField::Grade,
+            };
+        }
+
+        Action::SubmitGrade => {
+            let grade = match state.grade_form.grade.trim().parse::<u32>() {
+                Ok(g) => g,
+                Err(_) => {
+                    state.error = Some("Nota inválida. Digite um número inteiro.".to_string());
+                    return Ok(());
+                }
+            };
+
+            let feedback = if state.grade_form.feedback.is_empty() {
+                None
+            } else {
+                Some(state.grade_form.feedback.clone())
+            };
+
+            let submission_id = if let Resource::Success(ref subs) = state.submissions {
+                subs.get(state.selected_submission_index).map(|s| s.id.clone())
+            } else { None };
+            let task_id = if let Resource::Success(ref tasks) = state.tasks {
+                tasks.get(state.selected_task_index).map(|t| t.id.clone())
+            } else { None };
+
+            let Some(submission_id) = submission_id else { return Ok(()); };
+            let Some(task_id)       = task_id       else { return Ok(()); };
+
+            let Some(ref api) = api_client(config, state) else { return Ok(()); };
+
+            match api_submissions::grade_submission(
+                api,
+                &submission_id,
+                GradeSubmissionRequest { grade, feedback },
+            ).await {
+                Ok(_) => {
+                    state.grade_form       = GradeForm::default();
+                    state.submission_modal = SubmissionModal::List;
+                    state.error            = None;
+
+                    match api_submissions::list_submissions(api, &task_id).await {
+                        Ok(list) => {
+                            state.selected_submission_index = 0;
+                            state.submissions = Resource::Success(list);
+                        }
+                        Err(e) => {
+                            state.submissions = Resource::Error(e.to_string());
+                        }
+                    }
+                }
+                Err(e) => {
+                    state.error = Some(e.to_string());
+                }
+            }
+        }
+
+        // -- file open ------------------------------------------
+
+        Action::OpenTaskFile => {
+            let url = if let Resource::Success(ref tasks) = state.tasks {
+                tasks.get(state.selected_task_index)
+                    .and_then(|t| t.file_url.clone())
+                    .unwrap_or_default()
+            } else { String::new() };
+
+            if !url.is_empty() {
+                #[cfg(target_os = "macos")]
+                let _ = std::process::Command::new("open").arg(&url).spawn();
+                #[cfg(target_os = "linux")]
+                let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+                #[cfg(target_os = "windows")]
+                let _ = std::process::Command::new("cmd").args(["/c", "start", url.as_str()]).spawn();
+            }
+        }
+
+        Action::OpenSubmissionFile => {
+            let url = if let Resource::Success(ref subs) = state.submissions {
+                subs.get(state.selected_submission_index)
+                    .and_then(|s| s.file_url.clone())
+                    .unwrap_or_default()
+            } else { String::new() };
+
+            if !url.is_empty() {
+                #[cfg(target_os = "macos")]
+                let _ = std::process::Command::new("open").arg(&url).spawn();
+                #[cfg(target_os = "linux")]
+                let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+                #[cfg(target_os = "windows")]
+                let _ = std::process::Command::new("cmd").args(["/c", "start", url.as_str()]).spawn();
             }
         }
 

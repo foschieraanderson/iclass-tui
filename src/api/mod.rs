@@ -5,3 +5,4 @@ pub mod classes;
 pub mod tasks;
 pub mod dashboard;
 pub mod reports;
+pub mod submissions;

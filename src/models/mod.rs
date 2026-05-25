@@ -4,3 +4,4 @@ pub mod class;
 pub mod task;
 pub mod dashboard;
 pub mod report;
+pub mod submission;

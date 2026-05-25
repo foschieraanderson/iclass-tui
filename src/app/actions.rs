@@ -113,4 +113,42 @@ pub enum Action {
 
     SubmitTaskForm,
     ConfirmDeleteTask,
+
+    // -- submissions ---------------------------------------------
+
+    /// student: abre modal de envio de resposta
+    OpenSubmitModal,
+
+    /// teacher/admin: abre lista de submissões da tarefa selecionada
+    OpenSubmissionsModal,
+
+    CloseSubmissionModal,
+
+    SubmitFormChar(char),
+    SubmitFormBackspace,
+    SubmitFormNextField,
+
+    /// student: POST /tasks/:id/submissions
+    SubmitSubmission,
+
+    /// carrega submissões da tarefa selecionada
+    LoadSubmissions,
+
+    SelectSubmission(usize),
+
+    /// abre modal de avaliação para a submissão selecionada
+    OpenGradeModal,
+
+    GradeFormChar(char),
+    GradeFormBackspace,
+    GradeFormNextField,
+
+    /// teacher/admin: PATCH /submissions/:id
+    SubmitGrade,
+
+    /// abre task.file_url no browser do sistema
+    OpenTaskFile,
+
+    /// abre submission.file_url no browser do sistema
+    OpenSubmissionFile,
 }
