@@ -74,6 +74,7 @@ async fn main() -> anyhow::Result<()> {
     {
         state.session = Some(session);
         state.route   = Route::Dashboard;
+        reducer(&mut state, Action::LoadDashboard, &pool, &config).await?;
     }
 
     // ---- terminal setup ----------------------------------------
@@ -236,6 +237,10 @@ async fn main() -> anyhow::Result<()> {
                                     &config,
                                 )
                                 .await?;
+
+                                if state.route == Route::Dashboard {
+                                    reducer(&mut state, Action::LoadDashboard, &pool, &config).await?;
+                                }
                             }
 
                             (_, KeyCode::Char(c)) => {
@@ -302,6 +307,8 @@ async fn main() -> anyhow::Result<()> {
                                                 reducer(&mut state, Action::LoadClasses, &pool, &config).await?;
                                             } else if state.route == Route::Users {
                                                 reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
+                                            } else if state.route == Route::Dashboard {
+                                                reducer(&mut state, Action::LoadDashboard, &pool, &config).await?;
                                             }
                                         } else if state.selected_class_index > 0 {
                                             let idx = state.selected_class_index - 1;
@@ -448,6 +455,8 @@ async fn main() -> anyhow::Result<()> {
                                                 reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
                                             } else if state.route == Route::Classes {
                                                 reducer(&mut state, Action::LoadClasses, &pool, &config).await?;
+                                            } else if state.route == Route::Dashboard {
+                                                reducer(&mut state, Action::LoadDashboard, &pool, &config).await?;
                                             }
                                         } else if state.selected_user_index > 0 {
                                             let idx = state.selected_user_index - 1;
@@ -581,6 +590,8 @@ async fn main() -> anyhow::Result<()> {
                                                 reducer(&mut state, Action::LoadClasses, &pool, &config).await?;
                                             } else if state.route == Route::Users {
                                                 reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
+                                            } else if state.route == Route::Dashboard {
+                                                reducer(&mut state, Action::LoadDashboard, &pool, &config).await?;
                                             }
                                         } else if state.selected_task_index > 0 {
                                             let idx = state.selected_task_index - 1;
@@ -722,6 +733,8 @@ async fn main() -> anyhow::Result<()> {
                                     reducer(&mut state, Action::LoadClasses, &pool, &config).await?;
                                 } else if state.route == Route::Tasks {
                                     reducer(&mut state, Action::LoadTasks, &pool, &config).await?;
+                                } else if state.route == Route::Dashboard {
+                                    reducer(&mut state, Action::LoadDashboard, &pool, &config).await?;
                                 }
                             }
 

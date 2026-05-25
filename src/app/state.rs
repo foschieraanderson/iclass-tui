@@ -7,6 +7,7 @@ use crate::{
     models::{
         auth::Session,
         class::ClassRoom,
+        dashboard::DashboardData,
         task::Task,
         user::User,
     },
@@ -234,6 +235,10 @@ pub struct AppState {
     /// Turmas disponíveis para o picker no modal de criação de tarefa.
     pub available_task_classes: Resource<Vec<ClassRoom>>,
 
+    // -- dashboard ----------------------------------------------
+
+    pub dashboard: Resource<DashboardData>,
+
     // -- shared -------------------------------------------------
 
     pub sidebar_index: usize,
@@ -271,6 +276,8 @@ impl Default for AppState {
             task_modal: TaskModal::None,
             task_form: TaskForm::default(),
             available_task_classes: Resource::Idle,
+
+            dashboard: Resource::Idle,
 
             sidebar_index: 0,
 

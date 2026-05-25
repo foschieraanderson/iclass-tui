@@ -4,6 +4,7 @@ use crate::{
     api::{
         classes as api_classes,
         client::ApiClient,
+        dashboard as api_dashboard,
         tasks as api_tasks,
         users as api_users,
     },
@@ -242,6 +243,35 @@ pub async fn reducer(
 
         Action::SetFocus(focus) => {
             state.focus = focus;
+        }
+
+        // ======================================================
+        // DASHBOARD
+        // ======================================================
+
+        Action::LoadDashboard => {
+
+            let Some(session) = &state.session else {
+                return Ok(());
+            };
+
+            let api = ApiClient::new(
+                &config.api_url,
+                Some(session.access_token.clone()),
+            );
+
+            state.dashboard = Resource::Loading;
+
+            match api_dashboard::get_dashboard(&api).await {
+
+                Ok(data) => {
+                    state.dashboard = Resource::Success(data);
+                }
+
+                Err(e) => {
+                    state.dashboard = Resource::Error(e.to_string());
+                }
+            }
         }
 
         // ======================================================

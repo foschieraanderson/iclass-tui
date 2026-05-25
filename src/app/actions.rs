@@ -27,6 +27,7 @@ pub enum Action {
 
     // -- general navigation --------------------------------------
 
+    LoadDashboard,
     LoadUsers,
     LoadClasses,
     LoadTasks,
