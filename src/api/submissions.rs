@@ -18,7 +18,7 @@ pub async fn submit(
     let mut fields = vec![];
     if let Some(c) = content {
         if !c.is_empty() {
-            fields.push(("content".to_string(), c));
+            fields.push(("textAnswer".to_string(), c));
         }
     }
     api.post_form_with_file(&format!("/tasks/{}/submissions", task_id), fields, file_path).await

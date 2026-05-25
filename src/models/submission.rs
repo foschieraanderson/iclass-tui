@@ -7,10 +7,12 @@ pub struct Submission {
     pub task_id:      String,
     pub student:      SubmissionStudent,
     pub file_url:     Option<String>,
+    #[serde(rename = "textAnswer")]
     pub content:      Option<String>,
     pub grade:        Option<u32>,
     pub feedback:     Option<String>,
     pub graded_at:    Option<String>,
+    #[serde(rename = "createdAt")]
     pub submitted_at: String,
 }
 

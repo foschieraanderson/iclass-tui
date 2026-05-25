@@ -553,8 +553,10 @@ pub async fn reducer(
                 Some(session.access_token.clone()),
             );
 
-            let teacher_email: Option<String> = if session.role == "teacher" {
-                Some(session.email.clone())
+            let filter_email: Option<(String, &str)> = if session.role == "teacher" {
+                Some((session.email.clone(), "teacher"))
+            } else if session.role == "student" {
+                Some((session.email.clone(), "student"))
             } else {
                 None
             };
@@ -564,10 +566,12 @@ pub async fn reducer(
             match api_classes::list_classes(&api).await {
 
                 Ok(list) => {
-                    let list = if let Some(ref email) = teacher_email {
-                        list.into_iter().filter(|c| &c.teacher.email == email).collect()
-                    } else {
-                        list
+                    let list = match filter_email.as_ref() {
+                        Some((email, "teacher")) =>
+                            list.into_iter().filter(|c| &c.teacher.email == email).collect(),
+                        Some((email, _)) =>
+                            list.into_iter().filter(|c| c.students.iter().any(|s| &s.email == email)).collect(),
+                        None => list,
                     };
                     state.selected_class_index = 0;
                     state.classes = Resource::Success(list);
