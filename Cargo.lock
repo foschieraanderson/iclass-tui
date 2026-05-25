@@ -975,6 +975,7 @@ dependencies = [
  "crossterm 0.29.0",
  "directories",
  "futures",
+ "libsqlite3-sys",
  "ratatui",
  "reqwest",
  "serde",
