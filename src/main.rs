@@ -162,6 +162,14 @@ async fn main() -> anyhow::Result<()> {
                             );
                         }
 
+                        Route::Reports => {
+                            ui::screens::reports::render(
+                                frame,
+                                chunks[2],
+                                &state,
+                            );
+                        }
+
                         _ => {
                             ui::screens::dashboard::render(
                                 frame,
@@ -571,6 +579,8 @@ async fn main() -> anyhow::Result<()> {
                                             reducer(&mut state, Action::NavigateDown, &pool, &config).await?;
                                             if state.route == Route::Tasks {
                                                 reducer(&mut state, Action::LoadTasks, &pool, &config).await?;
+                                            } else if state.route == Route::Reports {
+                                                reducer(&mut state, Action::LoadReports, &pool, &config).await?;
                                             }
                                         } else if let app::resources::Resource::Success(ref list) = state.tasks {
                                             let max = list.len().saturating_sub(1);
@@ -659,6 +669,8 @@ async fn main() -> anyhow::Result<()> {
                                             reducer(&mut state, Action::TaskPickerSelect, &pool, &config).await?;
                                         } else if active == TaskFormField::Score {
                                             reducer(&mut state, Action::TaskFormCycleScore, &pool, &config).await?;
+                                        } else {
+                                            reducer(&mut state, Action::TaskFormChar(' '), &pool, &config).await?;
                                         }
                                     }
 
@@ -722,6 +734,8 @@ async fn main() -> anyhow::Result<()> {
                                     reducer(&mut state, Action::LoadClasses, &pool, &config).await?;
                                 } else if state.route == Route::Tasks {
                                     reducer(&mut state, Action::LoadTasks, &pool, &config).await?;
+                                } else if state.route == Route::Reports {
+                                    reducer(&mut state, Action::LoadReports, &pool, &config).await?;
                                 }
                             }
 
@@ -733,6 +747,8 @@ async fn main() -> anyhow::Result<()> {
                                     reducer(&mut state, Action::LoadClasses, &pool, &config).await?;
                                 } else if state.route == Route::Tasks {
                                     reducer(&mut state, Action::LoadTasks, &pool, &config).await?;
+                                } else if state.route == Route::Reports {
+                                    reducer(&mut state, Action::LoadReports, &pool, &config).await?;
                                 } else if state.route == Route::Dashboard {
                                     reducer(&mut state, Action::LoadDashboard, &pool, &config).await?;
                                 }

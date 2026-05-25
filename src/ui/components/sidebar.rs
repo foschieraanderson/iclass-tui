@@ -20,6 +20,13 @@ pub fn render(
             ListItem::new("Turmas"),
             ListItem::new("Tarefas"),
         ]
+    } else if role == "teacher" {
+        vec![
+            ListItem::new("Dashboard"),
+            ListItem::new("Turmas"),
+            ListItem::new("Tarefas"),
+            ListItem::new("Relatórios"),
+        ]
     } else {
         vec![
             ListItem::new("Dashboard"),

@@ -31,6 +31,7 @@ pub enum Action {
     LoadUsers,
     LoadClasses,
     LoadTasks,
+    LoadReports,
 
     NavigateUp,
     NavigateDown,

@@ -138,6 +138,16 @@ pub fn render(
             }
         }
 
+        // ---- tela de relatórios ------------------------------
+
+        Route::Reports => {
+            vec![
+                key("↑↓"), label(" navegar"),
+                key("   l"), label(" logout"),
+                key("   q"), label(" sair"),
+            ]
+        }
+
         // ---- demais telas ------------------------------------
 
         _ => {

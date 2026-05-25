@@ -5,6 +5,7 @@ use crate::{
         classes as api_classes,
         client::ApiClient,
         dashboard as api_dashboard,
+        reports as api_reports,
         tasks as api_tasks,
         users as api_users,
     },
@@ -45,26 +46,36 @@ use crate::{
 };
 
 const SIDEBAR_MAX_ADMIN:   usize = 3;
+const SIDEBAR_MAX_TEACHER: usize = 3;
 const SIDEBAR_MAX_DEFAULT: usize = 2;
 
 fn sidebar_max(role: &str) -> usize {
-    if role == "admin" { SIDEBAR_MAX_ADMIN } else { SIDEBAR_MAX_DEFAULT }
+    match role {
+        "admin"   => SIDEBAR_MAX_ADMIN,
+        "teacher" => SIDEBAR_MAX_TEACHER,
+        _         => SIDEBAR_MAX_DEFAULT,
+    }
 }
 
 fn route_for_sidebar(index: usize, role: &str) -> Route {
-    if role == "admin" {
-        match index {
+    match role {
+        "admin" => match index {
             1 => Route::Users,
             2 => Route::Classes,
             3 => Route::Tasks,
             _ => Route::Dashboard,
-        }
-    } else {
-        match index {
+        },
+        "teacher" => match index {
+            1 => Route::Classes,
+            2 => Route::Tasks,
+            3 => Route::Reports,
+            _ => Route::Dashboard,
+        },
+        _ => match index {
             1 => Route::Classes,
             2 => Route::Tasks,
             _ => Route::Dashboard,
-        }
+        },
     }
 }
 
@@ -535,11 +546,22 @@ pub async fn reducer(
                 Some(session.access_token.clone()),
             );
 
+            let teacher_email: Option<String> = if session.role == "teacher" {
+                Some(session.email.clone())
+            } else {
+                None
+            };
+
             state.classes = Resource::Loading;
 
             match api_classes::list_classes(&api).await {
 
                 Ok(list) => {
+                    let list = if let Some(ref email) = teacher_email {
+                        list.into_iter().filter(|c| &c.teacher.email == email).collect()
+                    } else {
+                        list
+                    };
                     state.selected_class_index = 0;
                     state.classes = Resource::Success(list);
                 }
@@ -1033,6 +1055,10 @@ pub async fn reducer(
                 return Ok(());
             }
 
+            let teacher_email: Option<String> = state.session.as_ref()
+                .filter(|s| s.role == "teacher")
+                .map(|s| s.email.clone());
+
             state.task_form              = TaskForm::default();
             state.task_modal             = TaskModal::Add;
             state.available_task_classes = Resource::Loading;
@@ -1042,8 +1068,15 @@ pub async fn reducer(
             };
 
             match api_classes::list_classes(&api).await {
-                Ok(list) => { state.available_task_classes = Resource::Success(list); }
-                Err(e)   => { state.available_task_classes = Resource::Error(e.to_string()); }
+                Ok(list) => {
+                    let list = if let Some(ref email) = teacher_email {
+                        list.into_iter().filter(|c| &c.teacher.email == email).collect()
+                    } else {
+                        list
+                    };
+                    state.available_task_classes = Resource::Success(list);
+                }
+                Err(e) => { state.available_task_classes = Resource::Error(e.to_string()); }
             }
         }
 
@@ -1360,6 +1393,65 @@ pub async fn reducer(
                 Err(e) => {
                     state.error      = Some(e.to_string());
                     state.task_modal = TaskModal::None;
+                }
+            }
+        }
+
+        // ======================================================
+        // REPORTS
+        // ======================================================
+
+        Action::LoadReports => {
+
+            let Some(session) = &state.session else {
+                return Ok(());
+            };
+
+            if session.role != "teacher" && session.role != "admin" {
+                return Ok(());
+            }
+
+            let api = ApiClient::new(
+                &config.api_url,
+                Some(session.access_token.clone()),
+            );
+
+            let teacher_email: Option<String> = if session.role == "teacher" {
+                Some(session.email.clone())
+            } else {
+                None
+            };
+
+            state.reports = Resource::Loading;
+
+            match api_classes::list_classes(&api).await {
+
+                Err(e) => {
+                    state.reports = Resource::Error(e.to_string());
+                    return Ok(());
+                }
+
+                Ok(classes) => {
+
+                    let my_classes: Vec<_> = if let Some(ref email) = teacher_email {
+                        classes.into_iter().filter(|c| &c.teacher.email == email).collect()
+                    } else {
+                        classes
+                    };
+
+                    let mut reports = Vec::new();
+
+                    for class in &my_classes {
+                        match api_reports::get_class_report(&api, &class.id).await {
+                            Ok(report) => reports.push(report),
+                            Err(e) => {
+                                state.reports = Resource::Error(e.to_string());
+                                return Ok(());
+                            }
+                        }
+                    }
+
+                    state.reports = Resource::Success(reports);
                 }
             }
         }

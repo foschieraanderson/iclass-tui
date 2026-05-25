@@ -5,4 +5,5 @@ pub enum Route {
     Users,
     Classes,
     Tasks,
+    Reports,
 }

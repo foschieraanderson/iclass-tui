@@ -3,3 +3,4 @@ pub mod user;
 pub mod class;
 pub mod task;
 pub mod dashboard;
+pub mod report;

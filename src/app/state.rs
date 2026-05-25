@@ -8,6 +8,7 @@ use crate::{
         auth::Session,
         class::ClassRoom,
         dashboard::DashboardData,
+        report::ClassReport,
         task::Task,
         user::User,
     },
@@ -239,6 +240,10 @@ pub struct AppState {
 
     pub dashboard: Resource<DashboardData>,
 
+    // -- reports ------------------------------------------------
+
+    pub reports: Resource<Vec<ClassReport>>,
+
     // -- shared -------------------------------------------------
 
     pub sidebar_index: usize,
@@ -278,6 +283,8 @@ impl Default for AppState {
             available_task_classes: Resource::Idle,
 
             dashboard: Resource::Idle,
+
+            reports: Resource::Idle,
 
             sidebar_index: 0,
 
