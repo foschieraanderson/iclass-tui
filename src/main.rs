@@ -16,10 +16,13 @@ use app::{
     routes::Route,
     state::{
         AppState,
+        ClassFormField,
+        ClassModal,
         UserFormField,
         UserModal,
     },
 };
+
 
 use config::Config;
 
@@ -248,6 +251,151 @@ async fn main() -> anyhow::Result<()> {
                         }
                     }
 
+                    // ---- classes screen input ------------------
+
+                    Route::Classes => {
+
+                        let modal = state.class_modal.clone();
+
+                        match modal {
+
+                            ClassModal::None => {
+
+                                let is_admin = state.session
+                                    .as_ref()
+                                    .map(|s| s.role == "admin")
+                                    .unwrap_or(false);
+
+                                match key.code {
+
+                                    KeyCode::Left => {
+                                        reducer(&mut state, Action::SetFocus(Focus::Sidebar), &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Right => {
+                                        reducer(&mut state, Action::SetFocus(Focus::Content), &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Down => {
+                                        if state.focus == Focus::Sidebar {
+                                            reducer(&mut state, Action::NavigateDown, &pool, &config).await?;
+                                            if state.route == Route::Classes {
+                                                reducer(&mut state, Action::LoadClasses, &pool, &config).await?;
+                                            }
+                                        } else if let app::resources::Resource::Success(ref list) = state.classes {
+                                            let max = list.len().saturating_sub(1);
+                                            if state.selected_class_index < max {
+                                                let idx = state.selected_class_index + 1;
+                                                reducer(&mut state, Action::SelectClass(idx), &pool, &config).await?;
+                                            }
+                                        }
+                                    }
+
+                                    KeyCode::Up => {
+                                        if state.focus == Focus::Sidebar {
+                                            reducer(&mut state, Action::NavigateUp, &pool, &config).await?;
+                                            if state.route == Route::Classes {
+                                                reducer(&mut state, Action::LoadClasses, &pool, &config).await?;
+                                            }
+                                        } else if state.selected_class_index > 0 {
+                                            let idx = state.selected_class_index - 1;
+                                            reducer(&mut state, Action::SelectClass(idx), &pool, &config).await?;
+                                        }
+                                    }
+
+                                    KeyCode::Char('a') if is_admin => {
+                                        reducer(&mut state, Action::OpenAddClassModal, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Char('e') if is_admin => {
+                                        reducer(&mut state, Action::OpenEditClassModal, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Char('d') if is_admin => {
+                                        reducer(&mut state, Action::OpenConfirmDeleteClassModal, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Char('l') => {
+                                        reducer(&mut state, Action::Logout, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Char('q') => {
+                                        break;
+                                    }
+
+                                    _ => {}
+                                }
+                            }
+
+                            ClassModal::Add | ClassModal::Edit => {
+
+                                let active = state.class_form.active_field;
+                                let in_picker = active == ClassFormField::TeacherPicker
+                                    || active == ClassFormField::StudentPicker;
+
+                                match key.code {
+
+                                    KeyCode::Esc => {
+                                        reducer(&mut state, Action::CloseClassModal, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Tab => {
+                                        reducer(&mut state, Action::ClassFormNextField, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Enter => {
+                                        reducer(&mut state, Action::SubmitClassForm, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Up => {
+                                        if in_picker {
+                                            reducer(&mut state, Action::ClassPickerUp, &pool, &config).await?;
+                                        }
+                                    }
+
+                                    KeyCode::Down => {
+                                        if in_picker {
+                                            reducer(&mut state, Action::ClassPickerDown, &pool, &config).await?;
+                                        }
+                                    }
+
+                                    KeyCode::Char(' ') => {
+                                        if in_picker {
+                                            reducer(&mut state, Action::ClassPickerSelect, &pool, &config).await?;
+                                        }
+                                        // Espaço em campos de texto (Period/Grade) é ignorado
+                                    }
+
+                                    KeyCode::Backspace => {
+                                        reducer(&mut state, Action::ClassFormBackspace, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Char(c) => {
+                                        reducer(&mut state, Action::ClassFormChar(c), &pool, &config).await?;
+                                    }
+
+                                    _ => {}
+                                }
+                            }
+
+                            ClassModal::ConfirmDelete => {
+
+                                match key.code {
+
+                                    KeyCode::Enter | KeyCode::Char('y') => {
+                                        reducer(&mut state, Action::ConfirmDeleteClass, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Esc | KeyCode::Char('n') => {
+                                        reducer(&mut state, Action::CloseClassModal, &pool, &config).await?;
+                                    }
+
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+
                     // ---- users screen input --------------------
 
                     Route::Users => {
@@ -273,6 +421,8 @@ async fn main() -> anyhow::Result<()> {
                                             reducer(&mut state, Action::NavigateDown, &pool, &config).await?;
                                             if state.route == Route::Users {
                                                 reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
+                                            } else if state.route == Route::Classes {
+                                                reducer(&mut state, Action::LoadClasses, &pool, &config).await?;
                                             }
                                         } else if let app::resources::Resource::Success(ref list) = state.users {
                                             let max = list.len().saturating_sub(1);
@@ -288,6 +438,8 @@ async fn main() -> anyhow::Result<()> {
                                             reducer(&mut state, Action::NavigateUp, &pool, &config).await?;
                                             if state.route == Route::Users {
                                                 reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
+                                            } else if state.route == Route::Classes {
+                                                reducer(&mut state, Action::LoadClasses, &pool, &config).await?;
                                             }
                                         } else if state.selected_user_index > 0 {
                                             let idx = state.selected_user_index - 1;
@@ -399,6 +551,8 @@ async fn main() -> anyhow::Result<()> {
                                 reducer(&mut state, Action::NavigateDown, &pool, &config).await?;
                                 if state.route == Route::Users {
                                     reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
+                                } else if state.route == Route::Classes {
+                                    reducer(&mut state, Action::LoadClasses, &pool, &config).await?;
                                 }
                             }
 
@@ -406,6 +560,8 @@ async fn main() -> anyhow::Result<()> {
                                 reducer(&mut state, Action::NavigateUp, &pool, &config).await?;
                                 if state.route == Route::Users {
                                     reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
+                                } else if state.route == Route::Classes {
+                                    reducer(&mut state, Action::LoadClasses, &pool, &config).await?;
                                 }
                             }
 

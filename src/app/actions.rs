@@ -38,6 +38,8 @@ pub enum Action {
 
     Logout,
 
+    SetFocus(Focus),
+
     // -- users screen --------------------------------------------
 
     SelectUser(usize),
@@ -55,5 +57,30 @@ pub enum Action {
     SubmitUserForm,
     ConfirmDeleteUser,
 
-    SetFocus(Focus),
+    // -- classes screen ------------------------------------------
+
+    SelectClass(usize),
+
+    OpenAddClassModal,
+    OpenEditClassModal,
+    OpenConfirmDeleteClassModal,
+    CloseClassModal,
+
+    ClassFormChar(char),
+    ClassFormBackspace,
+    ClassFormNextField,
+
+    /// Move o cursor uma linha para cima no picker ativo (TeacherPicker ou StudentPicker).
+    ClassPickerUp,
+
+    /// Move o cursor uma linha para baixo no picker ativo.
+    ClassPickerDown,
+
+    /// Seleciona/alterna o item em destaque no picker ativo.
+    /// TeacherPicker: single-select (substitui seleção atual).
+    /// StudentPicker: toggle (adiciona ou remove da lista).
+    ClassPickerSelect,
+
+    SubmitClassForm,
+    ConfirmDeleteClass,
 }

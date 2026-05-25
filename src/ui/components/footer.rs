@@ -14,6 +14,7 @@ use crate::{
         routes::Route,
         state::{
             AppState,
+            ClassModal,
             UserModal,
         },
     },
@@ -26,7 +27,14 @@ pub fn render(
     state: &AppState,
 ) {
 
+    let is_admin = state.session
+        .as_ref()
+        .map(|s| s.role == "admin")
+        .unwrap_or(false);
+
     let spans = match state.route {
+
+        // ---- tela de usuários --------------------------------
 
         Route::Users => {
 
@@ -52,6 +60,43 @@ pub fn render(
                 ]
             }
         }
+
+        // ---- tela de turmas ----------------------------------
+
+        Route::Classes => {
+
+            if state.class_modal != ClassModal::None {
+
+                vec![
+                    key("Tab"), label(" próximo campo"),
+                    key("   Enter"), label(" salvar"),
+                    key("   Esc"), label(" cancelar"),
+                ]
+
+            } else if is_admin {
+
+                vec![
+                    key("←→"), label(" foco"),
+                    key("   ↑↓"), label(" navegar"),
+                    key("   a"), label(" adicionar"),
+                    key("   e"), label(" editar"),
+                    key("   d"), label(" remover"),
+                    key("   l"), label(" logout"),
+                    key("   q"), label(" sair"),
+                ]
+
+            } else {
+
+                vec![
+                    key("←→"), label(" foco"),
+                    key("   ↑↓"), label(" navegar"),
+                    key("   l"), label(" logout"),
+                    key("   q"), label(" sair"),
+                ]
+            }
+        }
+
+        // ---- demais telas ------------------------------------
 
         _ => {
             vec![

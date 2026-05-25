@@ -42,3 +42,13 @@ pub async fn delete_user(
 
     api.delete(&format!("/users/{}", id)).await
 }
+
+/// Lista usuários filtrados por role: `"teacher"` ou `"student"`.
+/// Usa `GET /users?role=<role>` — filtro suportado pela API.
+pub async fn list_users_by_role(
+    api: &ApiClient,
+    role: &str,
+) -> anyhow::Result<Vec<User>> {
+
+    api.get(&format!("/users?role={}", role)).await
+}

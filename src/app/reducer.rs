@@ -2,6 +2,7 @@ use sqlx::SqlitePool;
 
 use crate::{
     api::{
+        classes as api_classes,
         client::ApiClient,
         users as api_users,
     },
@@ -11,8 +12,12 @@ use crate::{
         routes::Route,
         state::{
             AppState,
+            ClassForm,
+            ClassFormField,
+            ClassModal,
             LoginField,
             LoginForm,
+            PICKER_VISIBLE_ROWS,
             UserForm,
             UserFormField,
             UserModal,
@@ -20,14 +25,20 @@ use crate::{
     },
     config::Config,
     database::session_repository,
-    models::user::{
-        CreateUserRequest,
-        UpdateUserRequest,
+    models::{
+        class::{
+            CreateClassRequest,
+            UpdateClassRequest,
+        },
+        user::{
+            CreateUserRequest,
+            UpdateUserRequest,
+        },
     },
     services::auth_service,
 };
 
-const SIDEBAR_MAX_ADMIN: usize = 3;
+const SIDEBAR_MAX_ADMIN:   usize = 3;
 const SIDEBAR_MAX_DEFAULT: usize = 2;
 
 fn sidebar_max(role: &str) -> usize {
@@ -56,6 +67,32 @@ fn api_client(config: &Config, state: &AppState) -> Option<ApiClient> {
         ApiClient::new(&config.api_url, Some(s.access_token.clone()))
     })
 }
+
+// ---- Helpers para pickers ------------------------------------
+
+/// Converte o índice selecionado no teacher picker para o UUID do professor.
+fn resolve_teacher_id(state: &AppState) -> Option<String> {
+    let idx = state.class_form.selected_teacher?;
+    if let Resource::Success(ref teachers) = state.available_teachers {
+        teachers.get(idx).map(|u| u.id.clone())
+    } else {
+        None
+    }
+}
+
+/// Converte os índices selecionados no student picker para uma lista de UUIDs.
+fn resolve_student_ids(state: &AppState) -> Vec<String> {
+    if let Resource::Success(ref students) = state.available_students {
+        state.class_form.selected_students
+            .iter()
+            .filter_map(|&idx| students.get(idx).map(|u| u.id.clone()))
+            .collect()
+    } else {
+        Vec::new()
+    }
+}
+
+// ---- Reducer -------------------------------------------------
 
 pub async fn reducer(
     state: &mut AppState,
@@ -186,7 +223,15 @@ pub async fn reducer(
             state.error = msg;
         }
 
-        // -- users: load ---------------------------------------
+        // -- focus ---------------------------------------------
+
+        Action::SetFocus(focus) => {
+            state.focus = focus;
+        }
+
+        // ======================================================
+        // USERS
+        // ======================================================
 
         Action::LoadUsers => {
 
@@ -218,13 +263,9 @@ pub async fn reducer(
             }
         }
 
-        // -- users: list navigation ----------------------------
-
         Action::SelectUser(index) => {
             state.selected_user_index = index;
         }
-
-        // -- users: modals -------------------------------------
 
         Action::OpenAddUserModal => {
             state.user_form  = UserForm::default();
@@ -264,8 +305,6 @@ pub async fn reducer(
             state.user_form  = UserForm::default();
         }
 
-        // -- users: form input ---------------------------------
-
         Action::UserFormChar(c) => {
 
             match state.user_form.active_field {
@@ -304,8 +343,6 @@ pub async fn reducer(
                 _         => "student".to_string(),
             };
         }
-
-        // -- users: submit / delete ----------------------------
 
         Action::SubmitUserForm => {
 
@@ -353,20 +390,11 @@ pub async fn reducer(
                         return Ok(());
                     };
 
-                    let password = if state.user_form.password.is_empty() {
-                        None
-                    } else {
-                        Some(state.user_form.password.clone())
-                    };
-
                     let req = UpdateUserRequest {
                         name:  Some(state.user_form.name.clone()),
                         email: Some(state.user_form.email.clone()),
                         role:  Some(state.user_form.role.clone()),
                     };
-
-                    // password is not included in UpdateUserRequest per API design
-                    let _ = password;
 
                     match api_users::update_user(api, &id, req).await {
 
@@ -386,7 +414,6 @@ pub async fn reducer(
                 _ => {}
             }
 
-            // reload list after add/edit
             let api = api_client(config, state).unwrap();
             match api_users::list_users(&api).await {
                 Ok(list) => {
@@ -441,13 +468,478 @@ pub async fn reducer(
             }
         }
 
-        // -- focus ---------------------------------------------
+        // ======================================================
+        // CLASSES
+        // ======================================================
 
-        Action::SetFocus(focus) => {
-            state.focus = focus;
+        Action::LoadClasses => {
+
+            let Some(session) = &state.session else {
+                return Ok(());
+            };
+
+            let api = ApiClient::new(
+                &config.api_url,
+                Some(session.access_token.clone()),
+            );
+
+            state.classes = Resource::Loading;
+
+            match api_classes::list_classes(&api).await {
+
+                Ok(list) => {
+                    state.selected_class_index = 0;
+                    state.classes = Resource::Success(list);
+                }
+
+                Err(e) => {
+                    state.classes = Resource::Error(e.to_string());
+                }
+            }
         }
 
-        // -- not yet implemented -------------------------------
+        Action::SelectClass(index) => {
+            state.selected_class_index = index;
+        }
+
+        // -- classes: modals -----------------------------------
+
+        Action::OpenAddClassModal => {
+
+            let is_admin = state.session.as_ref().map(|s| s.role == "admin").unwrap_or(false);
+            if !is_admin {
+                return Ok(());
+            }
+
+            state.class_form          = ClassForm::default();
+            state.class_modal         = ClassModal::Add;
+            state.available_teachers  = Resource::Loading;
+            state.available_students  = Resource::Loading;
+
+            let Some(api) = api_client(config, state) else {
+                return Ok(());
+            };
+
+            // Carrega professores
+            match api_users::list_users_by_role(&api, "teacher").await {
+                Ok(list) => { state.available_teachers = Resource::Success(list); }
+                Err(e)   => { state.available_teachers = Resource::Error(e.to_string()); }
+            }
+
+            // Carrega alunos
+            match api_users::list_users_by_role(&api, "student").await {
+                Ok(list) => { state.available_students = Resource::Success(list); }
+                Err(e)   => { state.available_students = Resource::Error(e.to_string()); }
+            }
+        }
+
+        Action::OpenEditClassModal => {
+
+            let is_admin = state.session.as_ref().map(|s| s.role == "admin").unwrap_or(false);
+            if !is_admin {
+                return Ok(());
+            }
+
+            // Extrai dados da turma selecionada antes de mutarmos o estado
+            let (period, grade, teacher_id, class_student_ids) =
+                if let Resource::Success(ref list) = state.classes {
+                    if let Some(class) = list.get(state.selected_class_index) {
+                        let sids: Vec<String> = class.students
+                            .iter()
+                            .map(|u| u.id.clone())
+                            .collect();
+                        (
+                            class.period.clone(),
+                            class.grade.clone(),
+                            class.teacher.id.clone(),
+                            sids,
+                        )
+                    } else {
+                        return Ok(());
+                    }
+                } else {
+                    return Ok(());
+                };
+
+            state.class_modal        = ClassModal::Edit;
+            state.available_teachers = Resource::Loading;
+            state.available_students = Resource::Loading;
+
+            let Some(api) = api_client(config, state) else {
+                return Ok(());
+            };
+
+            // Carrega professores e alunos
+            match api_users::list_users_by_role(&api, "teacher").await {
+                Ok(list) => { state.available_teachers = Resource::Success(list); }
+                Err(e)   => { state.available_teachers = Resource::Error(e.to_string()); }
+            }
+
+            match api_users::list_users_by_role(&api, "student").await {
+                Ok(list) => { state.available_students = Resource::Success(list); }
+                Err(e)   => { state.available_students = Resource::Error(e.to_string()); }
+            }
+
+            // Pré-seleciona professor pelo ID
+            let selected_teacher = if let Resource::Success(ref teachers) = state.available_teachers {
+                teachers.iter().position(|u| u.id == teacher_id)
+            } else {
+                None
+            };
+
+            let teacher_cursor = selected_teacher.unwrap_or(0);
+
+            // Pré-seleciona alunos pelo ID
+            let selected_students = if let Resource::Success(ref students) = state.available_students {
+                class_student_ids
+                    .iter()
+                    .filter_map(|id| students.iter().position(|u| &u.id == id))
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
+            state.class_form = ClassForm {
+                period,
+                grade,
+                teacher_cursor,
+                teacher_scroll: 0,
+                selected_teacher,
+                student_cursor: 0,
+                student_scroll: 0,
+                selected_students,
+                active_field: ClassFormField::Period,
+            };
+        }
+
+        Action::OpenConfirmDeleteClassModal => {
+
+            let is_admin = state.session.as_ref().map(|s| s.role == "admin").unwrap_or(false);
+            if is_admin {
+                if let Resource::Success(ref list) = state.classes {
+                    if list.get(state.selected_class_index).is_some() {
+                        state.class_modal = ClassModal::ConfirmDelete;
+                    }
+                }
+            }
+        }
+
+        Action::CloseClassModal => {
+            state.class_modal        = ClassModal::None;
+            state.class_form         = ClassForm::default();
+            state.available_teachers = Resource::Idle;
+            state.available_students = Resource::Idle;
+            state.error              = None;
+        }
+
+        // -- classes: form input (apenas campos de texto) ------
+
+        Action::ClassFormChar(c) => {
+
+            match state.class_form.active_field {
+                ClassFormField::Period        => state.class_form.period.push(c),
+                ClassFormField::Grade         => state.class_form.grade.push(c),
+                ClassFormField::TeacherPicker => {}
+                ClassFormField::StudentPicker => {}
+            }
+        }
+
+        Action::ClassFormBackspace => {
+
+            match state.class_form.active_field {
+                ClassFormField::Period        => { state.class_form.period.pop(); }
+                ClassFormField::Grade         => { state.class_form.grade.pop(); }
+                ClassFormField::TeacherPicker => {}
+                ClassFormField::StudentPicker => {}
+            }
+        }
+
+        Action::ClassFormNextField => {
+
+            state.class_form.active_field = match state.class_form.active_field {
+                ClassFormField::Period        => ClassFormField::Grade,
+                ClassFormField::Grade         => ClassFormField::TeacherPicker,
+                ClassFormField::TeacherPicker => ClassFormField::StudentPicker,
+                ClassFormField::StudentPicker => ClassFormField::Period,
+            };
+        }
+
+        // -- classes: picker navigation ------------------------
+
+        Action::ClassPickerUp => {
+
+            match state.class_form.active_field {
+
+                ClassFormField::TeacherPicker => {
+                    if state.class_form.teacher_cursor > 0 {
+                        state.class_form.teacher_cursor -= 1;
+                        if state.class_form.teacher_cursor < state.class_form.teacher_scroll {
+                            state.class_form.teacher_scroll = state.class_form.teacher_cursor;
+                        }
+                    }
+                }
+
+                ClassFormField::StudentPicker => {
+                    if state.class_form.student_cursor > 0 {
+                        state.class_form.student_cursor -= 1;
+                        if state.class_form.student_cursor < state.class_form.student_scroll {
+                            state.class_form.student_scroll = state.class_form.student_cursor;
+                        }
+                    }
+                }
+
+                _ => {}
+            }
+        }
+
+        Action::ClassPickerDown => {
+
+            match state.class_form.active_field {
+
+                ClassFormField::TeacherPicker => {
+                    let len = if let Resource::Success(ref list) = state.available_teachers {
+                        list.len()
+                    } else {
+                        0
+                    };
+                    if len > 0 && state.class_form.teacher_cursor < len - 1 {
+                        state.class_form.teacher_cursor += 1;
+                        if state.class_form.teacher_cursor
+                            >= state.class_form.teacher_scroll + PICKER_VISIBLE_ROWS
+                        {
+                            state.class_form.teacher_scroll =
+                                state.class_form.teacher_cursor + 1 - PICKER_VISIBLE_ROWS;
+                        }
+                    }
+                }
+
+                ClassFormField::StudentPicker => {
+                    let len = if let Resource::Success(ref list) = state.available_students {
+                        list.len()
+                    } else {
+                        0
+                    };
+                    if len > 0 && state.class_form.student_cursor < len - 1 {
+                        state.class_form.student_cursor += 1;
+                        if state.class_form.student_cursor
+                            >= state.class_form.student_scroll + PICKER_VISIBLE_ROWS
+                        {
+                            state.class_form.student_scroll =
+                                state.class_form.student_cursor + 1 - PICKER_VISIBLE_ROWS;
+                        }
+                    }
+                }
+
+                _ => {}
+            }
+        }
+
+        Action::ClassPickerSelect => {
+
+            match state.class_form.active_field {
+
+                ClassFormField::TeacherPicker => {
+                    if let Resource::Success(ref list) = state.available_teachers {
+                        if list.get(state.class_form.teacher_cursor).is_some() {
+                            state.class_form.selected_teacher =
+                                Some(state.class_form.teacher_cursor);
+                        }
+                    }
+                }
+
+                ClassFormField::StudentPicker => {
+                    if let Resource::Success(ref list) = state.available_students {
+                        let cursor = state.class_form.student_cursor;
+                        if list.get(cursor).is_some() {
+                            if let Some(pos) = state.class_form.selected_students
+                                .iter()
+                                .position(|&i| i == cursor)
+                            {
+                                // Já selecionado — remove (toggle off)
+                                state.class_form.selected_students.remove(pos);
+                            } else {
+                                // Não selecionado — adiciona (toggle on)
+                                state.class_form.selected_students.push(cursor);
+                            }
+                        }
+                    }
+                }
+
+                _ => {}
+            }
+        }
+
+        // -- classes: submit -----------------------------------
+
+        Action::SubmitClassForm => {
+
+            let is_admin = state.session.as_ref().map(|s| s.role == "admin").unwrap_or(false);
+            if !is_admin {
+                state.error = Some("Somente admin pode criar/editar turmas.".to_string());
+                return Ok(());
+            }
+
+            let Some(ref api) = api_client(config, state) else {
+                return Ok(());
+            };
+
+            let modal = state.class_modal.clone();
+
+            match modal {
+
+                ClassModal::Add => {
+
+                    let Some(teacher_id) = resolve_teacher_id(state) else {
+                        state.error = Some("Selecione um professor.".to_string());
+                        return Ok(());
+                    };
+
+                    let student_ids = resolve_student_ids(state);
+                    if student_ids.is_empty() {
+                        state.error = Some("Selecione ao menos um aluno.".to_string());
+                        return Ok(());
+                    }
+
+                    let req = CreateClassRequest {
+                        period:      state.class_form.period.clone(),
+                        grade:       state.class_form.grade.clone(),
+                        teacher_id,
+                        student_ids,
+                    };
+
+                    match api_classes::create_class(api, req).await {
+
+                        Ok(_) => {
+                            state.class_modal        = ClassModal::None;
+                            state.class_form         = ClassForm::default();
+                            state.available_teachers = Resource::Idle;
+                            state.available_students = Resource::Idle;
+                            state.error              = None;
+                        }
+
+                        Err(e) => {
+                            state.error = Some(e.to_string());
+                            return Ok(());
+                        }
+                    }
+                }
+
+                ClassModal::Edit => {
+
+                    let class_id = if let Resource::Success(ref list) = state.classes {
+                        list.get(state.selected_class_index).map(|c| c.id.clone())
+                    } else {
+                        None
+                    };
+
+                    let Some(id) = class_id else {
+                        return Ok(());
+                    };
+
+                    // Campos opcionais: só envia se houver seleção/valor
+                    let teacher_id  = resolve_teacher_id(state);
+                    let student_ids = {
+                        let ids = resolve_student_ids(state);
+                        if ids.is_empty() { None } else { Some(ids) }
+                    };
+                    let period = if state.class_form.period.is_empty() {
+                        None
+                    } else {
+                        Some(state.class_form.period.clone())
+                    };
+                    let grade = if state.class_form.grade.is_empty() {
+                        None
+                    } else {
+                        Some(state.class_form.grade.clone())
+                    };
+
+                    let req = UpdateClassRequest {
+                        period,
+                        grade,
+                        teacher_id,
+                        student_ids,
+                    };
+
+                    match api_classes::update_class(api, &id, req).await {
+
+                        Ok(_) => {
+                            state.class_modal        = ClassModal::None;
+                            state.class_form         = ClassForm::default();
+                            state.available_teachers = Resource::Idle;
+                            state.available_students = Resource::Idle;
+                            state.error              = None;
+                        }
+
+                        Err(e) => {
+                            state.error = Some(e.to_string());
+                            return Ok(());
+                        }
+                    }
+                }
+
+                _ => {}
+            }
+
+            // Recarrega a lista de turmas após add/edit
+            let api = api_client(config, state).unwrap();
+            match api_classes::list_classes(&api).await {
+                Ok(list) => {
+                    state.selected_class_index = 0;
+                    state.classes = Resource::Success(list);
+                }
+                Err(e) => {
+                    state.classes = Resource::Error(e.to_string());
+                }
+            }
+        }
+
+        // -- classes: delete -----------------------------------
+
+        Action::ConfirmDeleteClass => {
+
+            let class_id = if let Resource::Success(ref list) = state.classes {
+                list.get(state.selected_class_index).map(|c| c.id.clone())
+            } else {
+                None
+            };
+
+            let Some(id) = class_id else {
+                state.class_modal = ClassModal::None;
+                return Ok(());
+            };
+
+            let Some(ref api) = api_client(config, state) else {
+                return Ok(());
+            };
+
+            match api_classes::delete_class(api, &id).await {
+
+                Ok(_) => {
+                    state.class_modal = ClassModal::None;
+                    state.error       = None;
+
+                    let api2 = api_client(config, state).unwrap();
+                    match api_classes::list_classes(&api2).await {
+                        Ok(list) => {
+                            state.selected_class_index = 0;
+                            state.classes = Resource::Success(list);
+                        }
+                        Err(e) => {
+                            state.classes = Resource::Error(e.to_string());
+                        }
+                    }
+                }
+
+                Err(e) => {
+                    state.error = Some(e.to_string());
+                    state.class_modal = ClassModal::None;
+                }
+            }
+        }
+
+        // ======================================================
+        // não implementado
+        // ======================================================
 
         _ => {}
     }
