@@ -12,6 +12,9 @@ use crate::{
     },
 };
 
+/// Valores Fibonacci válidos para score de tarefa.
+pub const FIBONACCI_SCORES: &[u32] = &[1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144];
+
 /// Número de linhas visíveis em cada picker (teacher / students).
 /// Deve estar em sincronia com o layout do modal em `ui::screens::classes`.
 pub const PICKER_VISIBLE_ROWS: usize = 8;
@@ -136,6 +139,57 @@ impl Default for ClassForm {
     }
 }
 
+// ---- Task modal / form ----------------------------------------
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TaskModal {
+    None,
+    Add,
+    Edit,
+    ConfirmDelete,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TaskFormField {
+    Title,
+    Description,
+    Score,
+    ExpiresAt,
+    ClassPicker,
+}
+
+/// Formulário de criação/edição de tarefa.
+///
+/// `score_index` aponta para `FIBONACCI_SCORES`.
+/// `selected_class` referencia índice em `AppState::available_task_classes` (só usado no Add).
+#[derive(Debug, Clone)]
+pub struct TaskForm {
+    pub title: String,
+    pub description: String,
+    pub score_index: usize,
+    pub expires_at: String,
+    pub active_field: TaskFormField,
+    // class picker (single-select, só no modal Add)
+    pub class_cursor: usize,
+    pub class_scroll: usize,
+    pub selected_class: Option<usize>,
+}
+
+impl Default for TaskForm {
+    fn default() -> Self {
+        Self {
+            title: String::new(),
+            description: String::new(),
+            score_index: 0,
+            expires_at: String::new(),
+            active_field: TaskFormField::Title,
+            class_cursor: 0,
+            class_scroll: 0,
+            selected_class: None,
+        }
+    }
+}
+
 // ---- App state ------------------------------------------------
 
 pub struct AppState {
@@ -173,6 +227,12 @@ pub struct AppState {
     // -- tasks --------------------------------------------------
 
     pub tasks: Resource<Vec<Task>>,
+    pub selected_task_index: usize,
+    pub task_modal: TaskModal,
+    pub task_form: TaskForm,
+
+    /// Turmas disponíveis para o picker no modal de criação de tarefa.
+    pub available_task_classes: Resource<Vec<ClassRoom>>,
 
     // -- shared -------------------------------------------------
 
@@ -207,6 +267,10 @@ impl Default for AppState {
             available_students: Resource::Idle,
 
             tasks: Resource::Idle,
+            selected_task_index: 0,
+            task_modal: TaskModal::None,
+            task_form: TaskForm::default(),
+            available_task_classes: Resource::Idle,
 
             sidebar_index: 0,
 

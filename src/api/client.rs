@@ -105,6 +105,52 @@ impl ApiClient {
         Ok(response.json::<T>().await?)
     }
 
+    /// POST com multipart/form-data (sem arquivo — apenas campos de texto).
+    pub async fn post_form<T>(
+        &self,
+        path: &str,
+        fields: Vec<(String, String)>,
+    ) -> anyhow::Result<T>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        let form = fields
+            .into_iter()
+            .fold(reqwest::multipart::Form::new(), |f, (k, v)| f.text(k, v));
+
+        let response = self.client
+            .post(format!("{}{}", self.base_url, path))
+            .multipart(form)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(response.json::<T>().await?)
+    }
+
+    /// PATCH com multipart/form-data (sem arquivo — apenas campos de texto).
+    pub async fn patch_form<T>(
+        &self,
+        path: &str,
+        fields: Vec<(String, String)>,
+    ) -> anyhow::Result<T>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        let form = fields
+            .into_iter()
+            .fold(reqwest::multipart::Form::new(), |f, (k, v)| f.text(k, v));
+
+        let response = self.client
+            .patch(format!("{}{}", self.base_url, path))
+            .multipart(form)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(response.json::<T>().await?)
+    }
+
     pub async fn delete(
         &self,
         path: &str,

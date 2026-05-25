@@ -83,4 +83,32 @@ pub enum Action {
 
     SubmitClassForm,
     ConfirmDeleteClass,
+
+    // -- tasks screen --------------------------------------------
+
+    SelectTask(usize),
+
+    OpenAddTaskModal,
+    OpenEditTaskModal,
+    OpenConfirmDeleteTaskModal,
+    CloseTaskModal,
+
+    TaskFormChar(char),
+    TaskFormBackspace,
+    TaskFormNextField,
+
+    /// Cicla pelo array FIBONACCI_SCORES no campo Score.
+    TaskFormCycleScore,
+
+    /// Move o cursor uma linha para cima no class picker da task.
+    TaskPickerUp,
+
+    /// Move o cursor uma linha para baixo no class picker da task.
+    TaskPickerDown,
+
+    /// Seleciona a turma em destaque no class picker (single-select).
+    TaskPickerSelect,
+
+    SubmitTaskForm,
+    ConfirmDeleteTask,
 }

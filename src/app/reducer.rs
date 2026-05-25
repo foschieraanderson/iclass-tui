@@ -4,6 +4,7 @@ use crate::{
     api::{
         classes as api_classes,
         client::ApiClient,
+        tasks as api_tasks,
         users as api_users,
     },
     app::{
@@ -15,9 +16,13 @@ use crate::{
             ClassForm,
             ClassFormField,
             ClassModal,
+            FIBONACCI_SCORES,
             LoginField,
             LoginForm,
             PICKER_VISIBLE_ROWS,
+            TaskForm,
+            TaskFormField,
+            TaskModal,
             UserForm,
             UserFormField,
             UserModal,
@@ -89,6 +94,16 @@ fn resolve_student_ids(state: &AppState) -> Vec<String> {
             .collect()
     } else {
         Vec::new()
+    }
+}
+
+/// Converte o índice selecionado no class picker da task para o UUID da turma.
+fn resolve_task_class_id(state: &AppState) -> Option<String> {
+    let idx = state.task_form.selected_class?;
+    if let Resource::Success(ref classes) = state.available_task_classes {
+        classes.get(idx).map(|c| c.id.clone())
+    } else {
+        None
     }
 }
 
@@ -933,6 +948,381 @@ pub async fn reducer(
                 Err(e) => {
                     state.error = Some(e.to_string());
                     state.class_modal = ClassModal::None;
+                }
+            }
+        }
+
+        // ======================================================
+        // TASKS
+        // ======================================================
+
+        Action::LoadTasks => {
+
+            let Some(session) = &state.session else {
+                return Ok(());
+            };
+
+            let api = ApiClient::new(
+                &config.api_url,
+                Some(session.access_token.clone()),
+            );
+
+            state.tasks = Resource::Loading;
+
+            match api_tasks::list_tasks(&api).await {
+
+                Ok(list) => {
+                    state.selected_task_index = 0;
+                    state.tasks = Resource::Success(list);
+                }
+
+                Err(e) => {
+                    state.tasks = Resource::Error(e.to_string());
+                }
+            }
+        }
+
+        Action::SelectTask(index) => {
+            state.selected_task_index = index;
+        }
+
+        Action::OpenAddTaskModal => {
+
+            let can_create = state.session.as_ref()
+                .map(|s| s.role == "admin" || s.role == "teacher")
+                .unwrap_or(false);
+
+            if !can_create {
+                return Ok(());
+            }
+
+            state.task_form              = TaskForm::default();
+            state.task_modal             = TaskModal::Add;
+            state.available_task_classes = Resource::Loading;
+
+            let Some(api) = api_client(config, state) else {
+                return Ok(());
+            };
+
+            match api_classes::list_classes(&api).await {
+                Ok(list) => { state.available_task_classes = Resource::Success(list); }
+                Err(e)   => { state.available_task_classes = Resource::Error(e.to_string()); }
+            }
+        }
+
+        Action::OpenEditTaskModal => {
+
+            let can_edit = state.session.as_ref()
+                .map(|s| s.role == "admin" || s.role == "teacher")
+                .unwrap_or(false);
+
+            if !can_edit {
+                return Ok(());
+            }
+
+            if let Resource::Success(ref list) = state.tasks {
+                if let Some(task) = list.get(state.selected_task_index) {
+
+                    let score_index = FIBONACCI_SCORES
+                        .iter()
+                        .position(|&v| v == task.score as u32)
+                        .unwrap_or(0);
+
+                    state.task_form = TaskForm {
+                        title:        task.title.clone(),
+                        description:  task.description.clone().unwrap_or_default(),
+                        score_index,
+                        expires_at:   task.expires_at.clone().unwrap_or_default(),
+                        active_field: TaskFormField::Title,
+                        class_cursor: 0,
+                        class_scroll: 0,
+                        selected_class: None,
+                    };
+
+                    state.task_modal = TaskModal::Edit;
+                }
+            }
+        }
+
+        Action::OpenConfirmDeleteTaskModal => {
+
+            let can_delete = state.session.as_ref()
+                .map(|s| s.role == "admin" || s.role == "teacher")
+                .unwrap_or(false);
+
+            if can_delete {
+                if let Resource::Success(ref list) = state.tasks {
+                    if list.get(state.selected_task_index).is_some() {
+                        state.task_modal = TaskModal::ConfirmDelete;
+                    }
+                }
+            }
+        }
+
+        Action::CloseTaskModal => {
+            state.task_modal             = TaskModal::None;
+            state.task_form              = TaskForm::default();
+            state.available_task_classes = Resource::Idle;
+            state.error                  = None;
+        }
+
+        // -- tasks: form input ---------------------------------
+
+        Action::TaskFormChar(c) => {
+
+            match state.task_form.active_field {
+                TaskFormField::Title       => state.task_form.title.push(c),
+                TaskFormField::Description => state.task_form.description.push(c),
+                TaskFormField::ExpiresAt   => state.task_form.expires_at.push(c),
+                TaskFormField::Score
+                | TaskFormField::ClassPicker => {}
+            }
+        }
+
+        Action::TaskFormBackspace => {
+
+            match state.task_form.active_field {
+                TaskFormField::Title       => { state.task_form.title.pop(); }
+                TaskFormField::Description => { state.task_form.description.pop(); }
+                TaskFormField::ExpiresAt   => { state.task_form.expires_at.pop(); }
+                TaskFormField::Score
+                | TaskFormField::ClassPicker => {}
+            }
+        }
+
+        Action::TaskFormNextField => {
+
+            let modal = state.task_modal.clone();
+
+            state.task_form.active_field = match state.task_form.active_field {
+                TaskFormField::Title       => TaskFormField::Description,
+                TaskFormField::Description => TaskFormField::Score,
+                TaskFormField::Score       => TaskFormField::ExpiresAt,
+                TaskFormField::ExpiresAt   => {
+                    if modal == TaskModal::Add {
+                        TaskFormField::ClassPicker
+                    } else {
+                        TaskFormField::Title
+                    }
+                }
+                TaskFormField::ClassPicker => TaskFormField::Title,
+            };
+        }
+
+        Action::TaskFormCycleScore => {
+
+            let max = FIBONACCI_SCORES.len() - 1;
+            state.task_form.score_index =
+                if state.task_form.score_index < max {
+                    state.task_form.score_index + 1
+                } else {
+                    0
+                };
+        }
+
+        // -- tasks: picker navigation --------------------------
+
+        Action::TaskPickerUp => {
+
+            if state.task_form.class_cursor > 0 {
+                state.task_form.class_cursor -= 1;
+                if state.task_form.class_cursor < state.task_form.class_scroll {
+                    state.task_form.class_scroll = state.task_form.class_cursor;
+                }
+            }
+        }
+
+        Action::TaskPickerDown => {
+
+            let len = if let Resource::Success(ref list) = state.available_task_classes {
+                list.len()
+            } else {
+                0
+            };
+
+            if len > 0 && state.task_form.class_cursor < len - 1 {
+                state.task_form.class_cursor += 1;
+                if state.task_form.class_cursor
+                    >= state.task_form.class_scroll + PICKER_VISIBLE_ROWS
+                {
+                    state.task_form.class_scroll =
+                        state.task_form.class_cursor + 1 - PICKER_VISIBLE_ROWS;
+                }
+            }
+        }
+
+        Action::TaskPickerSelect => {
+
+            if let Resource::Success(ref list) = state.available_task_classes {
+                if list.get(state.task_form.class_cursor).is_some() {
+                    state.task_form.selected_class = Some(state.task_form.class_cursor);
+                }
+            }
+        }
+
+        // -- tasks: submit -------------------------------------
+
+        Action::SubmitTaskForm => {
+
+            let can_mutate = state.session.as_ref()
+                .map(|s| s.role == "admin" || s.role == "teacher")
+                .unwrap_or(false);
+
+            if !can_mutate {
+                return Ok(());
+            }
+
+            let Some(ref api) = api_client(config, state) else {
+                return Ok(());
+            };
+
+            let modal = state.task_modal.clone();
+
+            match modal {
+
+                TaskModal::Add => {
+
+                    if state.task_form.title.is_empty() {
+                        state.error = Some("Título é obrigatório.".to_string());
+                        return Ok(());
+                    }
+
+                    let Some(class_id) = resolve_task_class_id(state) else {
+                        state.error = Some("Selecione uma turma.".to_string());
+                        return Ok(());
+                    };
+
+                    let score = FIBONACCI_SCORES[state.task_form.score_index].to_string();
+
+                    let mut fields = vec![
+                        ("classId".to_string(), class_id),
+                        ("title".to_string(),   state.task_form.title.clone()),
+                        ("score".to_string(),   score),
+                    ];
+
+                    if !state.task_form.description.is_empty() {
+                        fields.push(("description".to_string(), state.task_form.description.clone()));
+                    }
+
+                    if !state.task_form.expires_at.is_empty() {
+                        fields.push(("expiresAt".to_string(), state.task_form.expires_at.clone()));
+                    }
+
+                    match api_tasks::create_task(api, fields).await {
+
+                        Ok(_) => {
+                            state.task_modal             = TaskModal::None;
+                            state.task_form              = TaskForm::default();
+                            state.available_task_classes = Resource::Idle;
+                            state.error                  = None;
+                        }
+
+                        Err(e) => {
+                            state.error = Some(e.to_string());
+                            return Ok(());
+                        }
+                    }
+                }
+
+                TaskModal::Edit => {
+
+                    let task_id = if let Resource::Success(ref list) = state.tasks {
+                        list.get(state.selected_task_index).map(|t| t.id.clone())
+                    } else {
+                        None
+                    };
+
+                    let Some(id) = task_id else {
+                        return Ok(());
+                    };
+
+                    let score = FIBONACCI_SCORES[state.task_form.score_index].to_string();
+
+                    let mut fields = vec![("score".to_string(), score)];
+
+                    if !state.task_form.title.is_empty() {
+                        fields.push(("title".to_string(), state.task_form.title.clone()));
+                    }
+
+                    if !state.task_form.description.is_empty() {
+                        fields.push(("description".to_string(), state.task_form.description.clone()));
+                    }
+
+                    if !state.task_form.expires_at.is_empty() {
+                        fields.push(("expiresAt".to_string(), state.task_form.expires_at.clone()));
+                    }
+
+                    match api_tasks::update_task(api, &id, fields).await {
+
+                        Ok(_) => {
+                            state.task_modal = TaskModal::None;
+                            state.task_form  = TaskForm::default();
+                            state.error      = None;
+                        }
+
+                        Err(e) => {
+                            state.error = Some(e.to_string());
+                            return Ok(());
+                        }
+                    }
+                }
+
+                _ => {}
+            }
+
+            // Recarrega lista após add/edit
+            let api2 = api_client(config, state).unwrap();
+            match api_tasks::list_tasks(&api2).await {
+                Ok(list) => {
+                    state.selected_task_index = 0;
+                    state.tasks = Resource::Success(list);
+                }
+                Err(e) => {
+                    state.tasks = Resource::Error(e.to_string());
+                }
+            }
+        }
+
+        // -- tasks: delete -------------------------------------
+
+        Action::ConfirmDeleteTask => {
+
+            let task_id = if let Resource::Success(ref list) = state.tasks {
+                list.get(state.selected_task_index).map(|t| t.id.clone())
+            } else {
+                None
+            };
+
+            let Some(id) = task_id else {
+                state.task_modal = TaskModal::None;
+                return Ok(());
+            };
+
+            let Some(ref api) = api_client(config, state) else {
+                return Ok(());
+            };
+
+            match api_tasks::delete_task(api, &id).await {
+
+                Ok(_) => {
+                    state.task_modal = TaskModal::None;
+                    state.error      = None;
+
+                    let api2 = api_client(config, state).unwrap();
+                    match api_tasks::list_tasks(&api2).await {
+                        Ok(list) => {
+                            state.selected_task_index = 0;
+                            state.tasks = Resource::Success(list);
+                        }
+                        Err(e) => {
+                            state.tasks = Resource::Error(e.to_string());
+                        }
+                    }
+                }
+
+                Err(e) => {
+                    state.error      = Some(e.to_string());
+                    state.task_modal = TaskModal::None;
                 }
             }
         }
