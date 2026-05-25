@@ -11,6 +11,10 @@ Interface de terminal (TUI) para o sistema [iClass](https://github.com), constru
 - Navegação por teclado entre Dashboard, Usuários, Turmas e Tarefas
 - Logout com limpeza da sessão local
 - Senha mascarada no formulário de login
+- **Usuários** — CRUD completo (somente admin): lista, adicionar, editar, remover
+- **Turmas** — CRUD completo (somente admin): lista, adicionar (com seleção de professor e alunos), editar, remover
+- **Tarefas** — CRUD completo (admin e teacher): lista por papel/turma, criar com score Fibonacci e turma, editar, remover
+- RBAC em todas as telas: atalhos e ações filtrados por papel (admin / teacher / student)
 
 ---
 
@@ -21,7 +25,7 @@ Interface de terminal (TUI) para o sistema [iClass](https://github.com), constru
 | [ratatui](https://ratatui.rs) | 0.29 | Widgets e layout do terminal |
 | [crossterm](https://docs.rs/crossterm) | 0.29 | Input/output, raw mode |
 | [tokio](https://tokio.rs) | 1 | Runtime assíncrono |
-| [reqwest](https://docs.rs/reqwest) | 0.12 | Cliente HTTP |
+| [reqwest](https://docs.rs/reqwest) | 0.12 | Cliente HTTP (json + multipart) |
 | [sqlx](https://docs.rs/sqlx) | 0.8 | SQLite (cache local) |
 | [serde](https://serde.rs) | 1 | Serialização JSON |
 | [anyhow](https://docs.rs/anyhow) | 1 | Propagação de erros |
@@ -77,9 +81,23 @@ Edite `src/config.rs` para ajustar os valores padrão:
 
 | Tecla | Ação |
 |---|---|
-| `↑` / `↓` | Navegar no menu lateral |
+| `←` / `→` | Alternar foco entre sidebar e conteúdo |
+| `↑` / `↓` | Navegar no menu lateral (foco sidebar) ou na lista (foco conteúdo) |
+| `a` | Adicionar item (onde aplicável, respeitando RBAC) |
+| `e` | Editar item selecionado (onde aplicável, respeitando RBAC) |
+| `d` | Remover item selecionado (onde aplicável, respeitando RBAC) |
 | `l` | Logout — apaga sessão e volta para o login |
 | `q` | Fechar o aplicativo |
+
+### Formulários (modais Add/Edit)
+
+| Tecla | Ação |
+|---|---|
+| `Tab` | Próximo campo |
+| `Espaço` | Ciclar valor (perfil em usuários, score Fibonacci em tarefas, selecionar em pickers) |
+| `↑` / `↓` | Navegar em pickers (professor, alunos, turma) |
+| `Enter` | Salvar |
+| `Esc` | Cancelar |
 
 ---
 
@@ -90,12 +108,15 @@ src/
 ├── main.rs                    # Loop principal, init do banco, dispatch de eventos
 ├── config.rs                  # URL da API e caminho do banco
 ├── api/
-│   ├── client.rs              # Cliente HTTP com Bearer token
-│   └── auth.rs                # POST /auth/login
+│   ├── client.rs              # Cliente HTTP (Bearer token, JSON + multipart)
+│   ├── auth.rs                # POST /auth/login
+│   ├── users.rs               # CRUD /users (+ filtro ?role=)
+│   ├── classes.rs             # CRUD /classes
+│   └── tasks.rs               # CRUD /tasks (multipart)
 ├── app/
-│   ├── state.rs               # AppState + LoginForm
-│   ├── actions.rs             # Enum de todas as mutações
-│   ├── reducer.rs             # Lógica de estado (async)
+│   ├── state.rs               # AppState, todos os forms/modals/pickers
+│   ├── actions.rs             # Enum exaustivo de mutações
+│   ├── reducer.rs             # Lógica de estado async
 │   ├── routes.rs              # Enum Route
 │   ├── focus.rs               # Enum Focus
 │   └── resources.rs           # Resource<T> (Idle/Loading/Success/Error)
@@ -105,9 +126,9 @@ src/
 │   └── session_repository.rs  # save / load / delete session
 ├── models/
 │   ├── auth.rs                # LoginRequest, LoginResponse, Session
-│   ├── user.rs                # User
-│   ├── class.rs               # ClassRoom
-│   └── task.rs                # Task
+│   ├── user.rs                # User, CreateUserRequest, UpdateUserRequest
+│   ├── class.rs               # ClassRoom, CreateClassRequest, UpdateClassRequest
+│   └── task.rs                # Task, ClassRef
 ├── services/
 │   ├── auth_service.rs        # Orquestra login → salva sessão
 │   └── sync_service.rs        # Stub — sincronização futura
@@ -115,14 +136,15 @@ src/
     ├── theme.rs               # Constantes de cor
     ├── layout.rs              # Split sidebar + conteúdo + footer
     ├── components/
+    │   ├── header.rs          # Barra superior (app + email/role)
     │   ├── sidebar.rs         # Menu lateral navegável
-    │   └── footer.rs          # Rodapé com atalhos
+    │   └── footer.rs          # Rodapé com atalhos contextuais
     └── screens/
         ├── login.rs           # Formulário de login centralizado
         ├── dashboard.rs       # Dashboard principal
-        ├── users.rs           # Tela de usuários
-        ├── classes.rs         # Tela de turmas
-        └── tasks.rs           # Tela de tarefas
+        ├── users.rs           # Tela de usuários (CRUD, somente admin)
+        ├── classes.rs         # Tela de turmas (CRUD admin; pickers de professor/alunos)
+        └── tasks.rs           # Tela de tarefas (CRUD admin/teacher; score Fibonacci; class picker)
 ```
 
 Consulte [AGENTS.md](AGENTS.md) para documentação completa de arquitetura.
