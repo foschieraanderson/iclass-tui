@@ -41,7 +41,8 @@ pub fn render(
             } else {
 
                 vec![
-                    key("↑↓"), label(" navegar"),
+                    key("←→"), label(" foco"),
+                    key("   ↑↓"), label(" navegar"),
                     key("   a"), label(" adicionar"),
                     key("   e"), label(" editar"),
                     key("   d"), label(" remover"),

@@ -11,6 +11,7 @@ use std::io;
 
 use app::{
     actions::Action,
+    focus::Focus,
     reducer::reducer,
     routes::Route,
     state::{
@@ -119,6 +120,7 @@ async fn main() -> anyhow::Result<()> {
                         chunks[0],
                         state.sidebar_index,
                         role,
+                        state.focus == Focus::Sidebar,
                     );
 
                     match state.route {
@@ -251,16 +253,21 @@ async fn main() -> anyhow::Result<()> {
 
                                 match key.code {
 
-                                    KeyCode::Char('q') => {
-                                        break;
+                                    KeyCode::Left => {
+                                        reducer(&mut state, Action::SetFocus(Focus::Sidebar), &pool, &config).await?;
                                     }
 
-                                    KeyCode::Char('l') => {
-                                        reducer(&mut state, Action::Logout, &pool, &config).await?;
+                                    KeyCode::Right => {
+                                        reducer(&mut state, Action::SetFocus(Focus::Content), &pool, &config).await?;
                                     }
 
                                     KeyCode::Down => {
-                                        if let app::resources::Resource::Success(ref list) = state.users {
+                                        if state.focus == Focus::Sidebar {
+                                            reducer(&mut state, Action::NavigateDown, &pool, &config).await?;
+                                            if state.route == Route::Users {
+                                                reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
+                                            }
+                                        } else if let app::resources::Resource::Success(ref list) = state.users {
                                             let max = list.len().saturating_sub(1);
                                             if state.selected_user_index < max {
                                                 let idx = state.selected_user_index + 1;
@@ -270,7 +277,12 @@ async fn main() -> anyhow::Result<()> {
                                     }
 
                                     KeyCode::Up => {
-                                        if state.selected_user_index > 0 {
+                                        if state.focus == Focus::Sidebar {
+                                            reducer(&mut state, Action::NavigateUp, &pool, &config).await?;
+                                            if state.route == Route::Users {
+                                                reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
+                                            }
+                                        } else if state.selected_user_index > 0 {
                                             let idx = state.selected_user_index - 1;
                                             reducer(&mut state, Action::SelectUser(idx), &pool, &config).await?;
                                         }
@@ -286,6 +298,14 @@ async fn main() -> anyhow::Result<()> {
 
                                     KeyCode::Char('d') => {
                                         reducer(&mut state, Action::OpenConfirmDeleteModal, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Char('l') => {
+                                        reducer(&mut state, Action::Logout, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Char('q') => {
+                                        break;
                                     }
 
                                     _ => {}
@@ -332,11 +352,7 @@ async fn main() -> anyhow::Result<()> {
 
                                 match key.code {
 
-                                    KeyCode::Enter => {
-                                        reducer(&mut state, Action::ConfirmDeleteUser, &pool, &config).await?;
-                                    }
-
-                                    KeyCode::Char('y') => {
+                                    KeyCode::Enter | KeyCode::Char('y') => {
                                         reducer(&mut state, Action::ConfirmDeleteUser, &pool, &config).await?;
                                     }
 
@@ -356,46 +372,31 @@ async fn main() -> anyhow::Result<()> {
 
                         match key.code {
 
+                            KeyCode::Left => {
+                                reducer(&mut state, Action::SetFocus(Focus::Sidebar), &pool, &config).await?;
+                            }
+
+                            KeyCode::Right => {
+                                reducer(&mut state, Action::SetFocus(Focus::Content), &pool, &config).await?;
+                            }
+
                             KeyCode::Char('q') => {
                                 break;
                             }
 
                             KeyCode::Char('l') => {
-
-                                reducer(
-                                    &mut state,
-                                    Action::Logout,
-                                    &pool,
-                                    &config,
-                                )
-                                .await?;
+                                reducer(&mut state, Action::Logout, &pool, &config).await?;
                             }
 
                             KeyCode::Down => {
-
-                                reducer(
-                                    &mut state,
-                                    Action::NavigateDown,
-                                    &pool,
-                                    &config,
-                                )
-                                .await?;
-
+                                reducer(&mut state, Action::NavigateDown, &pool, &config).await?;
                                 if state.route == Route::Users {
                                     reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
                                 }
                             }
 
                             KeyCode::Up => {
-
-                                reducer(
-                                    &mut state,
-                                    Action::NavigateUp,
-                                    &pool,
-                                    &config,
-                                )
-                                .await?;
-
+                                reducer(&mut state, Action::NavigateUp, &pool, &config).await?;
                                 if state.route == Route::Users {
                                     reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
                                 }

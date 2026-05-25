@@ -1,5 +1,8 @@
 use crate::{
-    app::routes::Route,
+    app::{
+        focus::Focus,
+        routes::Route,
+    },
     models::auth::Session,
 };
 
@@ -51,4 +54,6 @@ pub enum Action {
 
     SubmitUserForm,
     ConfirmDeleteUser,
+
+    SetFocus(Focus),
 }

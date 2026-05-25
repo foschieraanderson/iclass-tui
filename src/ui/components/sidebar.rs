@@ -8,6 +8,7 @@ pub fn render(
     area: Rect,
     selected: usize,
     role: &str,
+    focused: bool,
 ) {
 
     let items: Vec<ListItem> = if role == "admin" {
@@ -25,12 +26,15 @@ pub fn render(
         ]
     };
 
+    let highlight_style = if focused {
+        Style::default().fg(Color::Yellow)
+    } else {
+        Style::default().fg(Color::DarkGray)
+    };
+
     let list = List::new(items)
         .highlight_symbol("▶ ")
-        .highlight_style(
-            Style::default()
-                .fg(Color::Yellow),
-        )
+        .highlight_style(highlight_style)
         .block(
             Block::default()
                 .title("Menu")

@@ -441,6 +441,12 @@ pub async fn reducer(
             }
         }
 
+        // -- focus ---------------------------------------------
+
+        Action::SetFocus(focus) => {
+            state.focus = focus;
+        }
+
         // -- not yet implemented -------------------------------
 
         _ => {}
