@@ -969,6 +969,7 @@ name = "iclass-tui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
  "chrono",
  "color-eyre",
  "crossterm 0.29.0",
