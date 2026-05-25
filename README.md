@@ -1,6 +1,6 @@
 # iclass-tui
 
-Interface de terminal (TUI) para o sistema [iClass](https://github.com), construída com Rust e ratatui.
+Interface de terminal (TUI) para o sistema [iClass](https://github.com/foschieraanderson/iclass-api), construída com Rust e ratatui.
 
 ---
 
