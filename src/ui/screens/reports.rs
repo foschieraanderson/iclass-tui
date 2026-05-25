@@ -5,7 +5,7 @@ use ratatui::{
 
 use crate::{
     app::{resources::Resource, state::AppState},
-    models::report::ClassReport,
+    models::report::{ClassReport, ReportStudent},
     ui::theme,
 };
 
@@ -61,10 +61,17 @@ pub fn render(frame: &mut Frame, area: Rect, state: &AppState) {
 
 fn render_class_chart(frame: &mut Frame, area: Rect, report: &ClassReport) {
     let total_possible = report.tasks.iter().map(|t| t.score).sum::<u32>();
+    let total_tasks = report.tasks.len();
 
-    let bars: Vec<Bar<'static>> = report.students.iter().map(|s| {
+    let active_students: Vec<&ReportStudent> = report.students.iter()
+        .filter(|s| s.submissions.iter().any(|sub| sub.submitted))
+        .collect();
+
+    let bars: Vec<Bar<'static>> = active_students.iter().map(|s| {
+        let submitted_count = s.submissions.iter().filter(|sub| sub.submitted).count();
+        let label = format!("{} ({}/{})", short_name(&s.name), submitted_count, total_tasks);
         Bar::default()
-            .label(Line::from(short_name(&s.name)))
+            .label(Line::from(label))
             .value(s.total_earned as u64)
     }).collect();
 
@@ -76,7 +83,7 @@ fn render_class_chart(frame: &mut Frame, area: Rect, report: &ClassReport) {
 
     if bars.is_empty() {
         frame.render_widget(
-            Paragraph::new("Sem alunos nesta turma.")
+            Paragraph::new("Nenhuma entrega ainda.")
                 .style(Style::default().fg(theme::BORDER_INACTIVE))
                 .block(
                     Block::default()

@@ -18,10 +18,19 @@ pub struct ReportTask {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReportSubmission {
+    pub task_id:   String,
+    pub submitted: bool,
+    pub grade:     Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReportStudent {
     pub id:             String,
     pub name:           String,
     pub email:          String,
+    pub submissions:    Vec<ReportSubmission>,
     pub total_earned:   u32,
     pub total_possible: u32,
 }
