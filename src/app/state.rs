@@ -12,6 +12,8 @@ use crate::{
     },
 };
 
+// ---- Login form -----------------------------------------------
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LoginField {
     Email,
@@ -35,6 +37,47 @@ impl Default for LoginForm {
     }
 }
 
+// ---- User modal / form ----------------------------------------
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum UserModal {
+    None,
+    Add,
+    Edit,
+    ConfirmDelete,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum UserFormField {
+    Name,
+    Email,
+    Password,
+    Role,
+}
+
+#[derive(Debug, Clone)]
+pub struct UserForm {
+    pub name: String,
+    pub email: String,
+    pub password: String,
+    pub role: String,
+    pub active_field: UserFormField,
+}
+
+impl Default for UserForm {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            email: String::new(),
+            password: String::new(),
+            role: "student".to_string(),
+            active_field: UserFormField::Name,
+        }
+    }
+}
+
+// ---- App state ------------------------------------------------
+
 pub struct AppState {
 
     pub route: Route,
@@ -50,6 +93,10 @@ pub struct AppState {
     pub tasks: Resource<Vec<Task>>,
 
     pub sidebar_index: usize,
+
+    pub selected_user_index: usize,
+    pub user_modal: UserModal,
+    pub user_form: UserForm,
 
     pub loading: bool,
 
@@ -72,6 +119,10 @@ impl Default for AppState {
             tasks: Resource::Idle,
 
             sidebar_index: 0,
+
+            selected_user_index: 0,
+            user_modal: UserModal::None,
+            user_form: UserForm::default(),
 
             loading: false,
 

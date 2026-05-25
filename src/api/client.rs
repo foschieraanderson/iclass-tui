@@ -81,4 +81,45 @@ impl ApiClient {
 
         Ok(response.json::<T>().await?)
     }
+
+    pub async fn patch<B, T>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> anyhow::Result<T>
+    where
+        B: serde::Serialize,
+        T: serde::de::DeserializeOwned,
+    {
+        let response = self.client
+            .patch(format!(
+                "{}{}",
+                self.base_url,
+                path,
+            ))
+            .json(body)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(response.json::<T>().await?)
+    }
+
+    pub async fn delete(
+        &self,
+        path: &str,
+    ) -> anyhow::Result<()> {
+
+        self.client
+            .delete(format!(
+                "{}{}",
+                self.base_url,
+                path,
+            ))
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(())
+    }
 }

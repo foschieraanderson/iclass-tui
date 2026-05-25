@@ -9,16 +9,22 @@ pub async fn migrate(
         CREATE TABLE IF NOT EXISTS session (
             id            INTEGER PRIMARY KEY,
             token         TEXT NOT NULL,
-            refresh_token TEXT NOT NULL DEFAULT ''
+            refresh_token TEXT NOT NULL DEFAULT '',
+            role          TEXT NOT NULL DEFAULT 'student'
         )
         "#,
     )
     .execute(pool)
     .await?;
 
-    // idempotente: adiciona coluna em bancos criados antes desta versão
     let _ = sqlx::query(
         "ALTER TABLE session ADD COLUMN refresh_token TEXT NOT NULL DEFAULT ''",
+    )
+    .execute(pool)
+    .await;
+
+    let _ = sqlx::query(
+        "ALTER TABLE session ADD COLUMN role TEXT NOT NULL DEFAULT 'student'",
     )
     .execute(pool)
     .await;

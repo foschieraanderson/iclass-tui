@@ -13,7 +13,11 @@ use app::{
     actions::Action,
     reducer::reducer,
     routes::Route,
-    state::AppState,
+    state::{
+        AppState,
+        UserFormField,
+        UserModal,
+    },
 };
 
 use config::Config;
@@ -105,10 +109,16 @@ async fn main() -> anyhow::Result<()> {
                     let chunks =
                         ui::layout::layout(frame);
 
+                    let role = state.session
+                        .as_ref()
+                        .map(|s| s.role.as_str())
+                        .unwrap_or("student");
+
                     ui::components::sidebar::render(
                         frame,
                         chunks[0],
                         state.sidebar_index,
+                        role,
                     );
 
                     match state.route {
@@ -149,6 +159,7 @@ async fn main() -> anyhow::Result<()> {
                     ui::components::footer::render(
                         frame,
                         chunks[2],
+                        &state,
                     );
                 }
             }
@@ -228,6 +239,117 @@ async fn main() -> anyhow::Result<()> {
                         }
                     }
 
+                    // ---- users screen input --------------------
+
+                    Route::Users => {
+
+                        let modal = state.user_modal.clone();
+
+                        match modal {
+
+                            UserModal::None => {
+
+                                match key.code {
+
+                                    KeyCode::Char('q') => {
+                                        break;
+                                    }
+
+                                    KeyCode::Char('l') => {
+                                        reducer(&mut state, Action::Logout, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Down => {
+                                        if let app::resources::Resource::Success(ref list) = state.users {
+                                            let max = list.len().saturating_sub(1);
+                                            if state.selected_user_index < max {
+                                                let idx = state.selected_user_index + 1;
+                                                reducer(&mut state, Action::SelectUser(idx), &pool, &config).await?;
+                                            }
+                                        }
+                                    }
+
+                                    KeyCode::Up => {
+                                        if state.selected_user_index > 0 {
+                                            let idx = state.selected_user_index - 1;
+                                            reducer(&mut state, Action::SelectUser(idx), &pool, &config).await?;
+                                        }
+                                    }
+
+                                    KeyCode::Char('a') => {
+                                        reducer(&mut state, Action::OpenAddUserModal, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Char('e') => {
+                                        reducer(&mut state, Action::OpenEditUserModal, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Char('d') => {
+                                        reducer(&mut state, Action::OpenConfirmDeleteModal, &pool, &config).await?;
+                                    }
+
+                                    _ => {}
+                                }
+                            }
+
+                            UserModal::Add | UserModal::Edit => {
+
+                                match key.code {
+
+                                    KeyCode::Esc => {
+                                        reducer(&mut state, Action::CloseUserModal, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Tab => {
+                                        reducer(&mut state, Action::UserFormNextField, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Enter => {
+                                        reducer(&mut state, Action::SubmitUserForm, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Backspace => {
+                                        reducer(&mut state, Action::UserFormBackspace, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Char(' ') => {
+                                        if state.user_form.active_field == UserFormField::Role {
+                                            reducer(&mut state, Action::UserFormCycleRole, &pool, &config).await?;
+                                        } else {
+                                            reducer(&mut state, Action::UserFormChar(' '), &pool, &config).await?;
+                                        }
+                                    }
+
+                                    KeyCode::Char(c) => {
+                                        reducer(&mut state, Action::UserFormChar(c), &pool, &config).await?;
+                                    }
+
+                                    _ => {}
+                                }
+                            }
+
+                            UserModal::ConfirmDelete => {
+
+                                match key.code {
+
+                                    KeyCode::Enter => {
+                                        reducer(&mut state, Action::ConfirmDeleteUser, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Char('y') => {
+                                        reducer(&mut state, Action::ConfirmDeleteUser, &pool, &config).await?;
+                                    }
+
+                                    KeyCode::Esc | KeyCode::Char('n') => {
+                                        reducer(&mut state, Action::CloseUserModal, &pool, &config).await?;
+                                    }
+
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+
                     // ---- dashboard / other screens input -------
 
                     _ => {
@@ -258,6 +380,10 @@ async fn main() -> anyhow::Result<()> {
                                     &config,
                                 )
                                 .await?;
+
+                                if state.route == Route::Users {
+                                    reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
+                                }
                             }
 
                             KeyCode::Up => {
@@ -269,6 +395,10 @@ async fn main() -> anyhow::Result<()> {
                                     &config,
                                 )
                                 .await?;
+
+                                if state.route == Route::Users {
+                                    reducer(&mut state, Action::LoadUsers, &pool, &config).await?;
+                                }
                             }
 
                             _ => {}

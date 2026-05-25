@@ -16,9 +16,13 @@ pub enum Action {
 
     SetError(Option<String>),
 
+    // -- login form input ----------------------------------------
+
     InputChar(char),
     InputBackspace,
     InputToggleField,
+
+    // -- general navigation --------------------------------------
 
     LoadUsers,
     LoadClasses,
@@ -30,4 +34,21 @@ pub enum Action {
     ChangeRoute(Route),
 
     Logout,
+
+    // -- users screen --------------------------------------------
+
+    SelectUser(usize),
+
+    OpenAddUserModal,
+    OpenEditUserModal,
+    OpenConfirmDeleteModal,
+    CloseUserModal,
+
+    UserFormChar(char),
+    UserFormBackspace,
+    UserFormNextField,
+    UserFormCycleRole,
+
+    SubmitUserForm,
+    ConfirmDeleteUser,
 }

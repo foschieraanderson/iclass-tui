@@ -7,14 +7,23 @@ pub fn render(
     frame: &mut Frame,
     area: Rect,
     selected: usize,
+    role: &str,
 ) {
 
-    let items = vec![
-        ListItem::new("Dashboard"),
-        ListItem::new("Usuários"),
-        ListItem::new("Turmas"),
-        ListItem::new("Tarefas"),
-    ];
+    let items: Vec<ListItem> = if role == "admin" {
+        vec![
+            ListItem::new("Dashboard"),
+            ListItem::new("Usuários"),
+            ListItem::new("Turmas"),
+            ListItem::new("Tarefas"),
+        ]
+    } else {
+        vec![
+            ListItem::new("Dashboard"),
+            ListItem::new("Turmas"),
+            ListItem::new("Tarefas"),
+        ]
+    };
 
     let list = List::new(items)
         .highlight_symbol("▶ ")
