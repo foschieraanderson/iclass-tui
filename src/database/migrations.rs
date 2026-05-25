@@ -29,6 +29,12 @@ pub async fn migrate(
     .execute(pool)
     .await;
 
+    let _ = sqlx::query(
+        "ALTER TABLE session ADD COLUMN email TEXT NOT NULL DEFAULT ''",
+    )
+    .execute(pool)
+    .await;
+
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS users (

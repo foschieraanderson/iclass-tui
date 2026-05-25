@@ -1,9 +1,6 @@
 use ratatui::{
     layout::Rect,
-    style::{
-        Color,
-        Style,
-    },
+    style::Style,
     text::{
         Line,
         Span,
@@ -12,12 +9,16 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::state::{
-    AppState,
-    UserModal,
+use crate::{
+    app::{
+        routes::Route,
+        state::{
+            AppState,
+            UserModal,
+        },
+    },
+    ui::theme,
 };
-
-use crate::app::routes::Route;
 
 pub fn render(
     frame: &mut Frame,
@@ -62,15 +63,15 @@ pub fn render(
     };
 
     let widget = Paragraph::new(Line::from(spans))
-        .style(Style::default().bg(Color::Reset));
+        .style(Style::default().bg(theme::HEADER_BG));
 
     frame.render_widget(widget, area);
 }
 
 fn key(text: &'static str) -> Span<'static> {
-    Span::styled(text, Style::default().fg(Color::Yellow))
+    Span::styled(text, Style::default().fg(theme::KEY_HINT))
 }
 
 fn label(text: &'static str) -> Span<'static> {
-    Span::styled(text, Style::default().fg(Color::DarkGray))
+    Span::styled(text, Style::default().fg(theme::KEY_LABEL))
 }

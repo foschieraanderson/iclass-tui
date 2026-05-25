@@ -3,7 +3,7 @@ use ratatui::{
     Frame,
 };
 
-// Retorna [sidebar, content, footer]
+// Retorna [header, sidebar, content, footer]
 pub fn layout(
     frame: &Frame,
 ) -> Vec<Rect> {
@@ -11,6 +11,7 @@ pub fn layout(
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
+            Constraint::Length(1),
             Constraint::Min(1),
             Constraint::Length(1),
         ])
@@ -22,7 +23,7 @@ pub fn layout(
             Constraint::Length(30),
             Constraint::Min(1),
         ])
-        .split(rows[0]);
+        .split(rows[1]);
 
-    vec![cols[0], cols[1], rows[1]]
+    vec![rows[0], cols[0], cols[1], rows[2]]
 }

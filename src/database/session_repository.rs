@@ -7,6 +7,7 @@ pub async fn save_session(
     access_token: &str,
     refresh_token: &str,
     role: &str,
+    email: &str,
 ) -> anyhow::Result<()> {
 
     sqlx::query(
@@ -15,14 +16,16 @@ pub async fn save_session(
             id,
             token,
             refresh_token,
-            role
+            role,
+            email
         )
-        VALUES (1, ?, ?, ?)
+        VALUES (1, ?, ?, ?, ?)
         "#,
     )
     .bind(access_token)
     .bind(refresh_token)
     .bind(role)
+    .bind(email)
     .execute(pool)
     .await?;
 
@@ -46,9 +49,9 @@ pub async fn load_session(
     pool: &SqlitePool,
 ) -> anyhow::Result<Option<Session>> {
 
-    let row = sqlx::query_as::<_, (String, String, String)>(
+    let row = sqlx::query_as::<_, (String, String, String, String)>(
         r#"
-        SELECT token, refresh_token, role
+        SELECT token, refresh_token, role, email
         FROM session
         WHERE id = 1
         "#,
@@ -61,6 +64,7 @@ pub async fn load_session(
             access_token: r.0,
             refresh_token: r.1,
             role: r.2,
+            email: r.3,
         }),
     )
 }

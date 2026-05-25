@@ -29,6 +29,7 @@ use ratatui::{
 
 use crate::{
     app::{
+        focus::Focus,
         resources::Resource,
         state::{
             AppState,
@@ -60,7 +61,8 @@ pub fn render(
             .block(
                 Block::default()
                     .title("Usuários")
-                    .borders(Borders::ALL),
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(theme::BORDER_INACTIVE)),
             );
 
         frame.render_widget(msg, area);
@@ -95,6 +97,14 @@ fn render_list(
     state: &AppState,
 ) {
 
+    let content_focused = state.focus == Focus::Content;
+
+    let border_style = if content_focused {
+        Style::default().fg(theme::BORDER_FOCUSED)
+    } else {
+        Style::default().fg(theme::BORDER_INACTIVE)
+    };
+
     match &state.users {
 
         Resource::Idle => {
@@ -103,7 +113,8 @@ fn render_list(
                 .block(
                     Block::default()
                         .title("Usuários")
-                        .borders(Borders::ALL),
+                        .borders(Borders::ALL)
+                        .border_style(border_style),
                 );
 
             frame.render_widget(msg, area);
@@ -116,7 +127,8 @@ fn render_list(
                 .block(
                     Block::default()
                         .title("Usuários")
-                        .borders(Borders::ALL),
+                        .borders(Borders::ALL)
+                        .border_style(border_style),
                 );
 
             frame.render_widget(msg, area);
@@ -129,7 +141,8 @@ fn render_list(
                 .block(
                     Block::default()
                         .title("Usuários")
-                        .borders(Borders::ALL),
+                        .borders(Borders::ALL)
+                        .border_style(border_style),
                 );
 
             frame.render_widget(msg, area);
@@ -142,9 +155,9 @@ fn render_list(
                 .map(|u| {
 
                     let role_style = match u.role.as_str() {
-                        "admin"   => Style::default().fg(Color::Red),
-                        "teacher" => Style::default().fg(Color::Yellow),
-                        _         => Style::default().fg(Color::Gray),
+                        "admin"   => Style::default().fg(theme::ROLE_ADMIN),
+                        "teacher" => Style::default().fg(theme::ROLE_TEACHER),
+                        _         => Style::default().fg(theme::ROLE_STUDENT),
                     };
 
                     ListItem::new(Line::from(vec![
@@ -154,7 +167,7 @@ fn render_list(
                         ),
                         Span::styled(
                             format!("{:<35}", u.email),
-                            Style::default().fg(Color::DarkGray),
+                            Style::default().fg(theme::KEY_LABEL),
                         ),
                         Span::styled(
                             u.role.clone(),
@@ -168,13 +181,15 @@ fn render_list(
                 .highlight_symbol("▶ ")
                 .highlight_style(
                     Style::default()
-                        .bg(Color::DarkGray)
+                        .bg(theme::LIST_SELECTED_BG)
+                        .fg(theme::LIST_SELECTED_FG)
                         .add_modifier(Modifier::BOLD),
                 )
                 .block(
                     Block::default()
                         .title(format!("Usuários ({})", users.len()))
-                        .borders(Borders::ALL),
+                        .borders(Borders::ALL)
+                        .border_style(border_style),
                 );
 
             let mut list_state = ListState::default();
@@ -224,25 +239,23 @@ fn render_form_modal(
     let sections = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(1),  // título
-            Constraint::Length(3),  // nome
-            Constraint::Length(3),  // email
-            Constraint::Length(3),  // senha
-            Constraint::Length(3),  // perfil
-            Constraint::Length(1),  // espaço
-            Constraint::Length(1),  // help
+            Constraint::Length(1),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(1),
+            Constraint::Length(1),
         ])
         .split(modal_area);
 
-    // outer block (borda do modal)
     let outer = Block::default()
         .title(title)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::White));
+        .border_style(Style::default().fg(theme::BORDER_FOCUSED));
 
     frame.render_widget(outer, modal_area);
 
-    // nome
     render_form_field(
         frame,
         sections[1],
@@ -252,7 +265,6 @@ fn render_form_modal(
         state.user_form.active_field == UserFormField::Name,
     );
 
-    // email
     render_form_field(
         frame,
         sections[2],
@@ -262,7 +274,6 @@ fn render_form_modal(
         state.user_form.active_field == UserFormField::Email,
     );
 
-    // senha
     render_form_field(
         frame,
         sections[3],
@@ -272,7 +283,6 @@ fn render_form_modal(
         state.user_form.active_field == UserFormField::Password,
     );
 
-    // perfil (cicla com Espaço)
     render_role_field(
         frame,
         sections[4],
@@ -280,12 +290,11 @@ fn render_form_modal(
         state.user_form.active_field == UserFormField::Role,
     );
 
-    // help
     let help = Paragraph::new(
         "Tab: próximo   Espaço: perfil   Enter: salvar   Esc: cancelar",
     )
     .alignment(Alignment::Center)
-    .style(Style::default().fg(Color::DarkGray));
+    .style(Style::default().fg(theme::KEY_LABEL));
 
     frame.render_widget(help, sections[6]);
 }
@@ -300,9 +309,9 @@ fn render_form_field(
 ) {
 
     let border_style = if active {
-        Style::default().fg(Color::Yellow)
+        Style::default().fg(theme::BORDER_FOCUSED)
     } else {
-        Style::default()
+        Style::default().fg(theme::BORDER_INACTIVE)
     };
 
     let text = if mask {
@@ -330,21 +339,21 @@ fn render_role_field(
 ) {
 
     let border_style = if active {
-        Style::default().fg(Color::Yellow)
+        Style::default().fg(theme::BORDER_FOCUSED)
     } else {
-        Style::default()
+        Style::default().fg(theme::BORDER_INACTIVE)
     };
 
     let role_color = match role {
-        "admin"   => Color::Red,
-        "teacher" => Color::Yellow,
-        _         => Color::Gray,
+        "admin"   => theme::ROLE_ADMIN,
+        "teacher" => theme::ROLE_TEACHER,
+        _         => theme::ROLE_STUDENT,
     };
 
     let content = Line::from(vec![
-        Span::styled("< ", Style::default().fg(Color::DarkGray)),
+        Span::styled("< ", Style::default().fg(theme::KEY_LABEL)),
         Span::styled(role, Style::default().fg(role_color)),
-        Span::styled(" >", Style::default().fg(Color::DarkGray)),
+        Span::styled(" >", Style::default().fg(theme::KEY_LABEL)),
     ]);
 
     let widget = Paragraph::new(content)
@@ -401,14 +410,14 @@ fn render_confirm_modal(
         Line::from(
             Span::styled(
                 format!("Remover \"{}\"?", user_name),
-                Style::default().fg(Color::White),
+                Style::default().fg(theme::HEADER_FG),
             ),
         ),
         Line::from(""),
         Line::from(
             Span::styled(
                 "Enter: confirmar   Esc: cancelar",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(theme::KEY_LABEL),
             ),
         ),
     ];
@@ -419,9 +428,7 @@ fn render_confirm_modal(
             Block::default()
                 .title("Confirmar exclusão")
                 .borders(Borders::ALL)
-                .border_style(
-                    Style::default().fg(theme::ERROR),
-                ),
+                .border_style(Style::default().fg(theme::ERROR)),
         );
 
     frame.render_widget(widget, modal_area);

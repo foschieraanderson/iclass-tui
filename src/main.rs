@@ -107,6 +107,7 @@ async fn main() -> anyhow::Result<()> {
 
                 _ => {
 
+                    // chunks: [0]=header, [1]=sidebar, [2]=content, [3]=footer
                     let chunks =
                         ui::layout::layout(frame);
 
@@ -115,9 +116,15 @@ async fn main() -> anyhow::Result<()> {
                         .map(|s| s.role.as_str())
                         .unwrap_or("student");
 
-                    ui::components::sidebar::render(
+                    ui::components::header::render(
                         frame,
                         chunks[0],
+                        &state,
+                    );
+
+                    ui::components::sidebar::render(
+                        frame,
+                        chunks[1],
                         state.sidebar_index,
                         role,
                         state.focus == Focus::Sidebar,
@@ -128,7 +135,7 @@ async fn main() -> anyhow::Result<()> {
                         Route::Users => {
                             ui::screens::users::render(
                                 frame,
-                                chunks[1],
+                                chunks[2],
                                 &state,
                             );
                         }
@@ -136,7 +143,7 @@ async fn main() -> anyhow::Result<()> {
                         Route::Classes => {
                             ui::screens::classes::render(
                                 frame,
-                                chunks[1],
+                                chunks[2],
                                 &state,
                             );
                         }
@@ -144,7 +151,7 @@ async fn main() -> anyhow::Result<()> {
                         Route::Tasks => {
                             ui::screens::tasks::render(
                                 frame,
-                                chunks[1],
+                                chunks[2],
                                 &state,
                             );
                         }
@@ -152,7 +159,7 @@ async fn main() -> anyhow::Result<()> {
                         _ => {
                             ui::screens::dashboard::render(
                                 frame,
-                                chunks[1],
+                                chunks[2],
                                 &state,
                             );
                         }
@@ -160,7 +167,7 @@ async fn main() -> anyhow::Result<()> {
 
                     ui::components::footer::render(
                         frame,
-                        chunks[2],
+                        chunks[3],
                         &state,
                     );
                 }

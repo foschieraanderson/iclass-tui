@@ -28,7 +28,7 @@ pub async fn authenticate(
 
     let response = login(
         &api,
-        email,
+        email.clone(),
         password,
     )
     .await?;
@@ -40,6 +40,7 @@ pub async fn authenticate(
         &response.access_token,
         &response.refresh_token,
         &role,
+        &email,
     )
     .await?;
 
@@ -48,6 +49,7 @@ pub async fn authenticate(
             access_token: response.access_token,
             refresh_token: response.refresh_token,
             role,
+            email,
         },
     )
 }

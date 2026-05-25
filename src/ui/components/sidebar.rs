@@ -3,6 +3,8 @@ use ratatui::{
     widgets::*,
 };
 
+use crate::ui::theme;
+
 pub fn render(
     frame: &mut Frame,
     area: Rect,
@@ -26,10 +28,19 @@ pub fn render(
         ]
     };
 
-    let highlight_style = if focused {
-        Style::default().fg(Color::Yellow)
+    let border_style = if focused {
+        Style::default().fg(theme::BORDER_FOCUSED)
     } else {
-        Style::default().fg(Color::DarkGray)
+        Style::default().fg(theme::BORDER_INACTIVE)
+    };
+
+    let highlight_style = if focused {
+        Style::default()
+            .bg(theme::LIST_SELECTED_BG)
+            .fg(theme::LIST_SELECTED_FG)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(theme::BORDER_INACTIVE)
     };
 
     let list = List::new(items)
@@ -38,7 +49,8 @@ pub fn render(
         .block(
             Block::default()
                 .title("Menu")
-                .borders(Borders::ALL),
+                .borders(Borders::ALL)
+                .border_style(border_style),
         );
 
     let mut state = ListState::default();

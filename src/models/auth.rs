@@ -21,4 +21,5 @@ pub struct Session {
     pub access_token: String,
     pub refresh_token: String,
     pub role: String,
+    pub email: String,
 }
