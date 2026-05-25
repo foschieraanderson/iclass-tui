@@ -22,14 +22,9 @@ jobs:
             artifact: iclass-tui-linux-x86_64.tar.gz
 
           - os: macos-latest
-            label: macos-arm64
+            label: macos-universal
             binary: iclass-tui
-            artifact: iclass-tui-macos-arm64.tar.gz
-
-          - os: macos-13
-            label: macos-x86_64
-            binary: iclass-tui
-            artifact: iclass-tui-macos-x86_64.tar.gz
+            artifact: iclass-tui-macos-universal.tar.gz
 
           - os: windows-latest
             label: windows-x86_64
@@ -43,6 +38,10 @@ jobs:
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Add x86_64 target (macOS universal binary)
+        if: matrix.label == 'macos-universal'
+        run: rustup target add x86_64-apple-darwin
+
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
@@ -52,11 +51,23 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build release binary
+      - name: Build release binary (Linux / Windows)
+        if: matrix.label != 'macos-universal'
         run: cargo build --release
 
-      - name: Package (Linux / macOS)
-        if: runner.os != 'Windows'
+      - name: Build universal binary (macOS arm64 + x86_64)
+        if: matrix.label == 'macos-universal'
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+          lipo -create \
+            target/aarch64-apple-darwin/release/iclass-tui \
+            target/x86_64-apple-darwin/release/iclass-tui \
+            -output iclass-tui
+          tar czf "${{ matrix.artifact }}" iclass-tui
+
+      - name: Package (Linux)
+        if: matrix.label == 'linux-x86_64'
         run: tar czf "${{ matrix.artifact }}" -C target/release "${{ matrix.binary }}"
 
       - name: Package (Windows)
