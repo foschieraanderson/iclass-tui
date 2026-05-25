@@ -53,7 +53,13 @@ pub fn render(
         .map(|s| s.role == "admin")
         .unwrap_or(false);
 
-    render_list(frame, area, state, is_admin);
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(5), Constraint::Length(7)])
+        .split(area);
+
+    render_list(frame, chunks[0], state, is_admin);
+    render_detail(frame, chunks[1], state);
 
     match state.class_modal {
 
@@ -596,6 +602,80 @@ fn student_item(
     );
 
     ListItem::new(Line::from(vec![checkbox, name, email]))
+}
+
+// ---- detail panel --------------------------------------------
+
+fn render_detail(
+    frame: &mut Frame,
+    area: Rect,
+    state: &AppState,
+) {
+
+    let block = Block::default()
+        .title("Detalhes da Turma")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme::BORDER_INACTIVE));
+
+    match &state.classes {
+
+        Resource::Success(classes) => {
+
+            if let Some(c) = classes.get(state.selected_class_index) {
+
+                let student_names = c.students
+                    .iter()
+                    .map(|u| u.name.clone())
+                    .collect::<Vec<_>>()
+                    .join(" · ");
+
+                let lines = vec![
+                    Line::from(vec![
+                        Span::styled("Código: ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::styled(c.code.clone(), Style::default().fg(theme::BORDER_FOCUSED)),
+                        Span::styled("   Período: ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::raw(c.period.clone()),
+                        Span::styled("   Série: ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::raw(c.grade.clone()),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("Professor: ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::styled(c.teacher.name.clone(), Style::default().fg(theme::HEADER_FG)),
+                        Span::styled("  ·  ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::raw(c.teacher.email.clone()),
+                    ]),
+                    Line::from(vec![
+                        Span::styled(
+                            format!("Alunos ({}): ", c.students.len()),
+                            Style::default().fg(theme::KEY_LABEL),
+                        ),
+                        Span::styled(
+                            if student_names.is_empty() { "—".to_string() } else { student_names },
+                            Style::default().fg(theme::ROLE_STUDENT),
+                        ),
+                    ]),
+                ];
+
+                frame.render_widget(Paragraph::new(lines).block(block), area);
+
+            } else {
+
+                frame.render_widget(
+                    Paragraph::new("—").block(block),
+                    area,
+                );
+            }
+        }
+
+        _ => {
+            frame.render_widget(
+                Paragraph::new("Selecione uma turma para ver os detalhes.")
+                    .style(Style::default().fg(theme::KEY_LABEL))
+                    .block(block),
+                area,
+            );
+        }
+    }
 }
 
 // ---- modal ConfirmDelete -------------------------------------

@@ -344,7 +344,14 @@ pub async fn reducer(
 
             state.user_form.active_field = match state.user_form.active_field {
                 UserFormField::Name     => UserFormField::Email,
-                UserFormField::Email    => UserFormField::Password,
+                UserFormField::Email    => {
+                    // Senha não existe no modal Edit
+                    if state.user_modal == UserModal::Edit {
+                        UserFormField::Role
+                    } else {
+                        UserFormField::Password
+                    }
+                }
                 UserFormField::Password => UserFormField::Role,
                 UserFormField::Role     => UserFormField::Name,
             };

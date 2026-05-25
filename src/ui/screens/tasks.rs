@@ -54,7 +54,13 @@ pub fn render(
         .map(|s| s.role == "admin" || s.role == "teacher")
         .unwrap_or(false);
 
-    render_list(frame, area, state, can_mutate);
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(5), Constraint::Length(7)])
+        .split(area);
+
+    render_list(frame, chunks[0], state, can_mutate);
+    render_detail(frame, chunks[1], state);
 
     match state.task_modal {
 
@@ -542,6 +548,74 @@ fn class_picker_item(
     );
 
     ListItem::new(Line::from(vec![indicator, code, label]))
+}
+
+// ---- detail panel --------------------------------------------
+
+fn render_detail(
+    frame: &mut Frame,
+    area: Rect,
+    state: &AppState,
+) {
+
+    let block = Block::default()
+        .title("Detalhes da Tarefa")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme::BORDER_INACTIVE));
+
+    match &state.tasks {
+
+        Resource::Success(tasks) => {
+
+            if let Some(t) = tasks.get(state.selected_task_index) {
+
+                let expires = t.expires_at.as_deref().unwrap_or("—");
+                let desc    = t.description.as_deref().unwrap_or("—");
+
+                let lines = vec![
+                    Line::from(vec![
+                        Span::styled("Turma: ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::styled(t.class.code.clone(), Style::default().fg(theme::BORDER_FOCUSED)),
+                        Span::styled("   Score: ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::styled(
+                            format!("{} pts", t.score),
+                            Style::default().fg(theme::ROLE_TEACHER),
+                        ),
+                        Span::styled("   Criado por: ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::styled(t.created_by.name.clone(), Style::default().fg(theme::HEADER_FG)),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("Expira: ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::raw(expires.to_string()),
+                        Span::styled("   Criado em: ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::raw(t.created_at.get(..10).unwrap_or(&t.created_at).to_string()),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("Descrição: ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::raw(desc.to_string()),
+                    ]),
+                ];
+
+                frame.render_widget(Paragraph::new(lines).block(block), area);
+
+            } else {
+
+                frame.render_widget(
+                    Paragraph::new("—").block(block),
+                    area,
+                );
+            }
+        }
+
+        _ => {
+            frame.render_widget(
+                Paragraph::new("Selecione uma tarefa para ver os detalhes.")
+                    .style(Style::default().fg(theme::KEY_LABEL))
+                    .block(block),
+                area,
+            );
+        }
+    }
 }
 
 // ---- modal de confirmação de exclusão ------------------------

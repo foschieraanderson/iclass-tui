@@ -69,9 +69,15 @@ pub fn render(
         return;
     }
 
-    // -- user list ---------------------------------------------
+    // -- user list + detail panel ------------------------------
 
-    render_list(frame, area, state);
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(5), Constraint::Length(8)])
+        .split(area);
+
+    render_list(frame, chunks[0], state);
+    render_detail(frame, chunks[1], state);
 
     // -- floating modals (rendered on top) ---------------------
 
@@ -230,23 +236,36 @@ fn render_form_modal(
 
     frame.render_widget(Clear, modal_area);
 
-    let title = if state.user_modal == UserModal::Add {
-        "Adicionar Usuário"
+    let is_add = state.user_modal == UserModal::Add;
+
+    let title = if is_add { "Adicionar Usuário" } else { "Editar Usuário" };
+
+    // Add: Nome, Email, Senha, Perfil (7 seções)
+    // Edit: Nome, Email, Perfil (6 seções — sem Senha)
+    let constraints: Vec<Constraint> = if is_add {
+        vec![
+            Constraint::Length(1),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ]
     } else {
-        "Editar Usuário"
+        vec![
+            Constraint::Length(1),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ]
     };
 
     let sections = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(1),
-            Constraint::Length(1),
-        ])
+        .constraints(constraints)
         .split(modal_area);
 
     let outer = Block::default()
@@ -274,29 +293,37 @@ fn render_form_modal(
         state.user_form.active_field == UserFormField::Email,
     );
 
-    render_form_field(
-        frame,
-        sections[3],
-        if state.user_modal == UserModal::Edit { "Senha (vazio = sem alterar)" } else { "Senha" },
-        &state.user_form.password,
-        true,
-        state.user_form.active_field == UserFormField::Password,
-    );
-
-    render_role_field(
-        frame,
-        sections[4],
-        &state.user_form.role,
-        state.user_form.active_field == UserFormField::Role,
-    );
-
     let help = Paragraph::new(
         "Tab: próximo   Espaço: perfil   Enter: salvar   Esc: cancelar",
     )
     .alignment(Alignment::Center)
     .style(Style::default().fg(theme::KEY_LABEL));
 
-    frame.render_widget(help, sections[6]);
+    if is_add {
+        render_form_field(
+            frame,
+            sections[3],
+            "Senha",
+            &state.user_form.password,
+            true,
+            state.user_form.active_field == UserFormField::Password,
+        );
+        render_role_field(
+            frame,
+            sections[4],
+            &state.user_form.role,
+            state.user_form.active_field == UserFormField::Role,
+        );
+        frame.render_widget(help, sections[6]);
+    } else {
+        render_role_field(
+            frame,
+            sections[3],
+            &state.user_form.role,
+            state.user_form.active_field == UserFormField::Role,
+        );
+        frame.render_widget(help, sections[5]);
+    }
 }
 
 fn render_form_field(
@@ -365,6 +392,72 @@ fn render_role_field(
         );
 
     frame.render_widget(widget, area);
+}
+
+// ---- detail panel --------------------------------------------
+
+fn render_detail(
+    frame: &mut Frame,
+    area: Rect,
+    state: &AppState,
+) {
+
+    let block = Block::default()
+        .title("Detalhes")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme::BORDER_INACTIVE));
+
+    match &state.users {
+
+        Resource::Success(users) => {
+
+            if let Some(user) = users.get(state.selected_user_index) {
+
+                let role_color = match user.role.as_str() {
+                    "admin"   => theme::ROLE_ADMIN,
+                    "teacher" => theme::ROLE_TEACHER,
+                    _         => theme::ROLE_STUDENT,
+                };
+
+                let lines = vec![
+                    Line::from(vec![
+                        Span::styled("ID:     ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::raw(user.id.clone()),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("Nome:   ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::styled(user.name.clone(), Style::default().fg(theme::HEADER_FG)),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("Email:  ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::raw(user.email.clone()),
+                    ]),
+                    Line::from(vec![
+                        Span::styled("Perfil: ", Style::default().fg(theme::KEY_LABEL)),
+                        Span::styled(user.role.clone(), Style::default().fg(role_color)),
+                    ]),
+                ];
+
+                frame.render_widget(Paragraph::new(lines).block(block), area);
+
+            } else {
+
+                frame.render_widget(
+                    Paragraph::new("—").block(block),
+                    area,
+                );
+            }
+        }
+
+        _ => {
+            frame.render_widget(
+                Paragraph::new("Selecione um usuário para ver os detalhes.")
+                    .style(Style::default().fg(theme::KEY_LABEL))
+                    .block(block),
+                area,
+            );
+        }
+    }
 }
 
 // ---- confirm delete modal ------------------------------------
